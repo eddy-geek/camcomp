@@ -22,7 +22,7 @@ These delivery models place different constraints on file access, image codec su
 The stack should be evaluated against:
 
 1. reliability of SIFT/AKAZE, descriptor matching, RANSAC, homography, and image-warping implementations;
-2. EXIF and codec support, including a future decision on HEIC and RAW;
+2. EXIF and codec support;
 3. deterministic behavior and access to analysis diagnostics;
 4. performance on multi-megapixel photos while using reduced analysis images;
 5. local folder access and incremental cache updates;
@@ -207,7 +207,7 @@ A hosted web service can instead run the same Rust core natively and avoids thes
 - `sift-features` is at `0.1.0`, exposes only limited tuning, and has a small maintainer/user base;
 - `vision-geometry` is new, currently has an MSRV of Rust 1.93, and exposes some RANSAC configuration as lower-level API;
 - descriptor conversion and matching glue must be maintained by camcomp;
-- no selected pure-Rust HEIC or RAW decoder is mature enough to include without a separate format spike;
+- no selected pure-Rust RAW decoder is mature enough to include without a separate format spike;
 - browser and native file access, parallelism, and optional codecs still require target-specific adapters;
 - numerical behavior and failure modes must be validated against known ground truth on representative photos, with an OpenCV comparison held in reserve.
 
@@ -286,7 +286,7 @@ The `sift-features` library itself checked successfully both natively and for `w
 
 `purecv` checked for `wasm32-unknown-unknown`, and its repository contains a dedicated WASM package and CI build. `vision-geometry` did not compile for bare `wasm32-unknown-unknown` in isolation because its random-number dependency requires the `getrandom/wasm_js` feature. The complete camcomp dependency smoke check succeeded after adding a direct `getrandom` dependency with that feature, so the workaround is verified; the project must encode it explicitly and keep it in WASM CI.
 
-HEIC remains the largest format gap. [`heif-oxide 0.1.0`](https://crates.io/crates/heif-oxide/0.1.0) is permissive and pure Rust but too young to accept without real iPhone fixtures. `heif-rs` is Apache-2.0 but statically links native libheif and changes packaging and WASM assumptions. The pure-Rust `heic` crate uses AGPL-3.0-or-commercial licensing. Drop 1 should initially declare JPEG/PNG support unless a HEIC spike selects and validates a decoder. RAW should also remain deferred.
+HEIC format : [`heif-oxide 0.1.0`](https://crates.io/crates/heif-oxide/0.1.0) is permissive and pure Rust but too young to accept without real iPhone fixtures. `heif-rs` is Apache-2.0 but statically links native libheif and changes packaging and WASM assumptions. The pure-Rust `heic` crate uses AGPL-3.0-or-commercial licensing. **So `heic` is the preferred option.** RAW should remain deferred.
 
 This audit establishes **coverage**, not OpenCV-equivalent maturity. Every major Drop 1 operation has a credible Rust implementation; the residual risk is validation, API youth, advanced codecs, and cross-target integration.
 
@@ -335,9 +335,9 @@ A browser-only release therefore has these initial acceptance boundaries:
 - one analysis worker;
 - bounded analysis dimensions and sequential extraction;
 - downloadable JSON fallback;
-- no promise of HEIC, RAW, mobile-browser performance, or automatic source-folder cache discovery on every browser.
+- no promise of RAW, mobile-browser performance, or automatic source-folder cache discovery on every browser.
 
-Within those boundaries, pure client-side Drop 1 and Drop 3 are feasible. General cross-browser, mobile, HEIC-capable operation is not yet established.
+Within those boundaries, pure client-side Drop 1 and Drop 3 are feasible. General cross-browser, mobile operation is not yet established.
 
 ## 4. Comparison
 
@@ -477,8 +477,6 @@ Before accepting the stack, representative files must verify:
 - pixel-count and allocation limits before full decode;
 - license and redistribution requirements.
 
-The first release should not imply HEIC or RAW support merely because candidate crates exist. Adding either format requires a separate decision covering decoder correctness, color depth/profile handling, metadata extraction, native/WASM availability, licensing, security limits, and packaging.
-
 The initial Rust workspace should align `imageproc` with the version used by `sift-features` to avoid duplicate processing stacks. Dependency types shall be converted at the internal trait boundary. `purecv` shall not enter the runtime dependency graph without a license review and a benchmark showing why the baseline components are insufficient.
 
 OpenCV may be used as a development-only oracle for fixture generation and metric comparison, and as the contingency reference implementation of Section 5.1. It shall not be a shipped dependency under this decision, and any such tooling lives in a `tools/` directory outside the Rust workspace so it cannot enter the runtime graph by accident. Hosted deployments must impose upload, decode-size, pixel-count, time, and memory limits before decoding untrusted images.
@@ -504,11 +502,10 @@ OpenCV may be used as a development-only oracle for fixture generation and metri
 - Some matching and interop glue becomes camcomp code.
 - The selected homography stack raises the initial Rust MSRV.
 - Pure client-side processing requires browser-specific filesystem, worker, persistence, and memory management.
-- HEIC and RAW are not covered by the initial dependency decision.
+- RAW is not covered by the initial dependency decision.
 - Hosted web delivery still introduces upload cost and privacy obligations absent from desktop and browser-only products.
 - The stack with the slowest experiment loop was chosen for a problem whose parameters are not yet known, and calibration happens in that stack. Section 5.1 bounds this with a timebox and a contingency rather than removing it.
 - Without a reference implementation available from the start, an early calibration failure is ambiguous between an algorithm problem and a young-dependency problem, and resolving that ambiguity costs a detour.
-- HEIC is the most likely real-world input from modern iPhones and recent Android devices. Declaring JPEG/PNG-only means part of the intended dataset requires manual conversion before it can be analysed at all, which is a user-visible limitation and not merely a deferred technical decision.
 
 ### Risks and mitigations
 
@@ -569,7 +566,6 @@ Failure of a browser-only spike does not block the native Tauri decision unless 
 - frontend framework and rendering library;
 - exact Rust workspace layout and CLI framework;
 - supported image codecs beyond initial JPEG/PNG;
-- HEIC decoder and native/WASM parity;
 - manufacturer-specific metadata strategy beyond standard EXIF;
 - hosted API framework, storage, and retention policy;
 - production browser-only support and mobile-browser scope;

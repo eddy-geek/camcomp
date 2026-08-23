@@ -765,7 +765,7 @@ Also verify:
 1. Location and redistribution status of the real photo sets -> ./test/tstgrp[1-8]
 2. Expected positive and negative pair labels for each set.
 3. First desktop packaging target: macOS, Windows, or Linux.
-4. HEIC handling: either convert a test copy to a declared supported format or promote the HEIC decoder spike. 
+4. HEIC handling: concerns on `heic` crate maturity for decoding.
 5. Exact device/mode identity rules and available manufacturer tags.
 6. Whether browser-only delivery is a release requirement or a non-blocking feasibility target.
 7. Native and browser memory budgets.

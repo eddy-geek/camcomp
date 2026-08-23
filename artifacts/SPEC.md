@@ -397,7 +397,6 @@ This should be complemented by synthetics tests where appropriate.
 
 ## 10. Open decisions
 
-- Supported input formats for the first implementation, especially HEIC and RAW.
 - Exact EXIF or application-specific source for shooting modes.
 - Reprojection and transform-plausibility limits after dataset calibration.
 - Whether per-device clock offsets are entered manually or inferred from high-confidence visual matches.
