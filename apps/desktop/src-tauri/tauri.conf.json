@@ -1,0 +1,34 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "camcomp",
+  "version": "0.1.0",
+  "identifier": "dev.camcomp.desktop",
+  "build": {
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "camcomp",
+        "width": 1200,
+        "height": 820,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "app",
+      "dmg"
+    ],
+    "icon": [
+      "icons/icon.png"
+    ],
+    "shortDescription": "Compare photos from several cameras or modes",
+    "longDescription": "camcomp groups photos that show the same scene, taken within one shooting session by different devices or shooting modes, and keeps the analysis in a cacheable camcomp.json beside the photos."
+  }
+}

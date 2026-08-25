@@ -286,7 +286,16 @@ The `sift-features` library itself checked successfully both natively and for `w
 
 `purecv` checked for `wasm32-unknown-unknown`, and its repository contains a dedicated WASM package and CI build. `vision-geometry` did not compile for bare `wasm32-unknown-unknown` in isolation because its random-number dependency requires the `getrandom/wasm_js` feature. The complete camcomp dependency smoke check succeeded after adding a direct `getrandom` dependency with that feature, so the workaround is verified; the project must encode it explicitly and keep it in WASM CI.
 
-HEIC format : [`heif-oxide 0.1.0`](https://crates.io/crates/heif-oxide/0.1.0) is permissive and pure Rust but too young to accept without real iPhone fixtures. `heif-rs` is Apache-2.0 but statically links native libheif and changes packaging and WASM assumptions. The pure-Rust `heic` crate uses AGPL-3.0-or-commercial licensing. **So `heic` is the preferred option.** RAW should remain deferred.
+HEIC format : [`heif-oxide 0.1.0`](https://crates.io/crates/heif-oxide/0.1.0) is permissive and pure Rust but was, at the time of this audit, too young to accept without real iPhone fixtures. `heif-rs` is Apache-2.0 but statically links native libheif and changes packaging and WASM assumptions. The pure-Rust `heic` crate uses AGPL-3.0-or-commercial licensing.
+
+> **Superseded by `IMPLEM-DROP1.md` §1.1–§1.2.** The dependency spike ran the real
+> iPhone/Oppo/Pixel fixtures against `heif-oxide` and it decoded every one
+> correctly (§1.1). `heic` was re-benchmarked once more against `heif-oxide` on
+> real photos after reaching 0.1.6/0.2.0 with SIMD and tile-parallel decoding
+> (§1.2): `heif-oxide` was faster in every configuration tried, in both debug and
+> release. **`heif-oxide` is what shipped**, so the AGPL question this section
+> raises does not apply — no dependency in the tree requires it. RAW remains
+> deferred.
 
 This audit establishes **coverage**, not OpenCV-equivalent maturity. Every major Drop 1 operation has a credible Rust implementation; the residual risk is validation, API youth, advanced codecs, and cross-target integration.
 
@@ -380,10 +389,9 @@ The runtime baseline is:
 2. `sift-features` as the primary feature extractor;
 3. an internal deterministic brute-force KNN matcher with Lowe ratio and optional mutual checks;
 4. `vision-geometry` for normalized-DLT RANSAC homography behind a camcomp-owned trait;
-5. `imageproc` for perspective warping and gradient metrics;
-6. `geo`, `sha2`, `serde`, `serde_json`, and `schemars` for overlap, fingerprints, and the cache contract;
-7. target-gated `rayon` for bounded native parallelism;
-8. direct Tauri commands and typed events for import, analysis, progress, and cancellation.
+5. `geo`, `sha2`, `serde`, `serde_json`, and `schemars` for overlap, fingerprints, and the cache contract;
+6. target-gated `rayon` for bounded native parallelism;
+7. direct Tauri commands and typed events for import, analysis, progress, and cancellation.
 
 This proposal chooses Option 3.4, conditional on the vertical validation spike in Section 9. The spike must demonstrate correct grouping and stable alignment on the initial dataset, acceptable performance, OpenCV-comparable geometric results, and a packageable Tauri build. Failure of the SIFT or homography acceptance criteria reopens the decision, in the order: Option 3.4.1 (swap the trait implementations for OpenCV bindings, native-only), then Python/OpenCV as a sidecar or a rewrite.
 

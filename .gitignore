@@ -1,1 +1,20 @@
+# Private photo sets. `test/tstgrp*` is committed on purpose (it is the labelled
+# reference data); `data/` is the raw private import and must not be.
 /data
+
+# Rust
+/target
+**/target
+
+# Analysis output written beside photos
+camcomp.json
+.camcomp.json.tmp
+
+# Node, for the desktop shell's tooling
+node_modules/
+
+# Tauri build output
+/apps/desktop/src-tauri/gen
+
+# macOS
+.DS_Store

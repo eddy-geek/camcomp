@@ -1,0 +1,79 @@
+[tools]
+rust = "1.97.1"
+node = "lts"
+
+[env]
+# Keep fixture runs off the network and reproducible.
+RUST_BACKTRACE = "1"
+
+[tasks.fmt]
+description = "Format the workspace"
+run = "cargo fmt --all"
+
+[tasks."fmt:check"]
+description = "Fail if formatting is not clean"
+run = "cargo fmt --all -- --check"
+
+[tasks.lint]
+description = "Clippy over everything, warnings denied"
+run = "cargo clippy --workspace --all-targets --all-features -- -D warnings"
+
+[tasks.test]
+description = "Unit, integration and doc tests. The reference-set suite is real-photo SIFT work, so it runs in release even here; everything else stays debug so assertions keep firing."
+run = [
+    "cargo test --workspace --all-features --lib --bins",
+    "cargo test --workspace --all-features --doc",
+    "cargo test -p camcomp-core --all-features --release --test reference_sets",
+]
+
+[tasks."test:quick"]
+description = "Inner-loop unit/doc tests only, no reference-set photos"
+run = [
+    "cargo test --workspace --all-features --lib --bins",
+    "cargo test --workspace --all-features --doc",
+]
+
+[tasks.build]
+description = "Release build"
+run = "cargo build --workspace --release"
+
+[tasks.schema]
+description = "Regenerate schema/camcomp.schema.json from the Rust types"
+run = [
+    "cargo run --quiet --release -p camcomp-cli -- schema > schema/camcomp.schema.json",
+]
+
+[tasks."schema:check"]
+description = "Fail if the checked-in JSON Schema is stale"
+run = [
+    "cargo run --quiet --release -p camcomp-cli -- schema > /tmp/camcomp.schema.json",
+    "diff -u schema/camcomp.schema.json /tmp/camcomp.schema.json",
+]
+
+[tasks."test-fixtures"]
+description = "Run the labelled reference sets in ./test and report label outcomes"
+depends = ["build"]
+run = "./scripts/run-fixtures.sh --table"
+
+[tasks."test-fixtures:relaxed"]
+description = "Same sets with the metadata prefilters relaxed, to show what they carry"
+depends = ["build"]
+run = "./scripts/run-fixtures.sh --relaxed --table"
+
+[tasks."test-fixtures:no-sessions"]
+description = "Same sets with session detection off, so the framing predicate and the geometric gates judge every pair"
+depends = ["build"]
+run = "./scripts/run-fixtures.sh --no-sessions --table"
+
+[tasks.calibrate]
+description = "Per-pair component distribution against the gN- labels"
+depends = ["build"]
+run = "./scripts/calibration-report.sh"
+
+[tasks.check]
+description = "Everything CI runs"
+depends = ["fmt:check", "lint", "test", "build", "schema:check"]
+
+[tasks."check-wasm"]
+description = "Browser feasibility target (ADR-DROP1 §9.3); the crate exists only once the spike is enabled"
+run = "cargo check -p camcomp-core --target wasm32-unknown-unknown"

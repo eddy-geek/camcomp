@@ -1,0 +1,18 @@
+[package]
+name = "camcomp-cli"
+description = "Command-line adapter for the camcomp analysis core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "camcomp"
+path = "src/main.rs"
+
+[dependencies]
+camcomp-core.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true

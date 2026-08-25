@@ -1,0 +1,1797 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnalysisDocument",
+  "description": "The complete `camcomp.json` document.",
+  "type": "object",
+  "properties": {
+    "algorithm": {
+      "description": "Algorithm identity and parameters.",
+      "$ref": "#/$defs/AlgorithmInfo"
+    },
+    "application": {
+      "description": "Application identity.",
+      "$ref": "#/$defs/ApplicationInfo"
+    },
+    "configurations": {
+      "description": "Configurations detected. Drop 4 selects from this list.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Configuration"
+      }
+    },
+    "groups": {
+      "description": "Groups after automatic construction and manual overrides.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Group"
+      }
+    },
+    "manualOverrides": {
+      "description": "Manual overrides, in application order.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ManualOverride"
+      }
+    },
+    "pairs": {
+      "description": "Pair results, including pairs skipped by the budget.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/PairResult"
+      }
+    },
+    "photos": {
+      "description": "Every input photo.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Photo"
+      }
+    },
+    "schemaVersion": {
+      "description": "Schema version, `major.minor`.",
+      "type": "string"
+    },
+    "sessions": {
+      "description": "Sessions.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Session"
+      }
+    },
+    "source": {
+      "description": "Source description.",
+      "$ref": "#/$defs/SourceInfo"
+    },
+    "stats": {
+      "description": "Run counters.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RunStats"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "ungrouped": {
+      "description": "Photos in no group, with a reason.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Ungrouped"
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "application",
+    "algorithm",
+    "source",
+    "configurations",
+    "photos",
+    "sessions",
+    "pairs",
+    "groups",
+    "ungrouped"
+  ],
+  "$defs": {
+    "AlgorithmInfo": {
+      "description": "Algorithm identity and configuration, persisted with every document.",
+      "type": "object",
+      "properties": {
+        "gates": {
+          "description": "Hard gates in force for this document.",
+          "$ref": "#/$defs/HardGates"
+        },
+        "name": {
+          "description": "Stable algorithm name.",
+          "type": "string"
+        },
+        "parameters": {
+          "description": "Tunables in force for this document.",
+          "$ref": "#/$defs/AnalysisParameters"
+        },
+        "thresholdsProvisional": {
+          "description": "`true` while the thresholds are still derived from a small labelled set\n(`SPEC.md` §9). Honest defaults beat confident ones.",
+          "type": "boolean"
+        },
+        "version": {
+          "description": "Algorithm version. A change invalidates cached pair results.",
+          "type": "string"
+        },
+        "weights": {
+          "description": "Score weights in force for this document.",
+          "$ref": "#/$defs/MetricWeights"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "parameters",
+        "weights",
+        "gates",
+        "thresholdsProvisional"
+      ]
+    },
+    "Alignment": {
+      "description": "Group-relative alignment for one non-anchor member (`SPEC.md` §7).",
+      "type": "object",
+      "properties": {
+        "confidence": {
+          "description": "Alignment confidence in `[0, 1]`, surfaced by the viewer so it can fall\nback gracefully.",
+          "type": "number",
+          "format": "double"
+        },
+        "coordinateSystem": {
+          "description": "Coordinate system of [`Self::homography`].",
+          "$ref": "#/$defs/CoordinateSystem"
+        },
+        "correspondences": {
+          "description": "Bounded, spatially distributed correspondences.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Correspondence"
+          }
+        },
+        "direction": {
+          "description": "Direction of [`Self::homography`].",
+          "$ref": "#/$defs/TransformDirection"
+        },
+        "homography": {
+          "description": "Row-major `3 × 3` homography, photo to anchor.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "inverseHomography": {
+          "description": "Row-major inverse, anchor to photo. Persisted so clients need no linear\nalgebra; validated on load.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "photoId": {
+          "description": "Member this alignment describes.",
+          "type": "string"
+        },
+        "provenance": {
+          "description": "How this alignment was derived.",
+          "$ref": "#/$defs/AlignmentProvenance"
+        }
+      },
+      "required": [
+        "photoId",
+        "coordinateSystem",
+        "direction",
+        "homography",
+        "inverseHomography",
+        "confidence",
+        "provenance"
+      ]
+    },
+    "AlignmentProvenance": {
+      "description": "How an alignment was obtained.",
+      "oneOf": [
+        {
+          "description": "Directly from the photo↔anchor pair analysis.",
+          "type": "string",
+          "const": "direct-pair"
+        },
+        {
+          "description": "Composed through another member because no direct pair was analyzed.\nCorrespondences were remapped through the composition.",
+          "type": "string",
+          "const": "composed"
+        },
+        {
+          "description": "A manual membership with no usable pair evidence. No transform.",
+          "type": "string",
+          "const": "manual-unverified"
+        }
+      ]
+    },
+    "AnalysisParameters": {
+      "description": "Tunable analysis parameters, persisted so a result can be explained and so\nchanging a threshold invalidates exactly the cached work that depended on it.",
+      "type": "object",
+      "properties": {
+        "analysisLongestEdge": {
+          "description": "Longest edge of the analysis image, in pixels.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "compatibilityThreshold": {
+          "description": "Composite score a pair must reach once every hard gate passes.",
+          "type": "number",
+          "format": "double"
+        },
+        "deviceTimeOffsetSeconds": {
+          "description": "Per-device capture-time corrections, in seconds, keyed by device key.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "default": {}
+        },
+        "focalTolerance": {
+          "description": "Maximum relative difference of 35 mm equivalent focal length.",
+          "type": "number",
+          "format": "double"
+        },
+        "loweRatio": {
+          "description": "Lowe ratio-test threshold.",
+          "type": "number",
+          "format": "double"
+        },
+        "maxCorrespondences": {
+          "description": "Upper bound on persisted correspondences per aligned photo.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "maxFeaturesPerPhoto": {
+          "description": "Upper bound on SIFT keypoints retained per photo.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "maxMegapixels": {
+          "description": "Guard on decoded pixel count, per photo.",
+          "type": "number",
+          "format": "double"
+        },
+        "maxPairsPerSession": {
+          "description": "Upper bound on pairs actually analyzed per session.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "minKeypointsForDecision": {
+          "description": "Below this keypoint count a photo cannot produce a decision, only\n`uncertain` (`SPEC.md` §5.2).",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "minMatchesForDecision": {
+          "description": "Below this ratio-filtered match count a pair stays `uncertain`.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "mutualMatch": {
+          "description": "Require forward and reverse nearest neighbours to agree.",
+          "type": "boolean"
+        },
+        "onePhotoPerConfiguration": {
+          "description": "Keep at most one photo per configuration in a group (`SPEC.md` §6).\n\nOn by default, because the product compares configurations against each\nother. Turning it off lets two shots from the same device and mode group\ntogether, which some labelled sets expect.",
+          "type": "boolean",
+          "default": true
+        },
+        "ransacMaxIterations": {
+          "description": "RANSAC iteration cap.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "ransacSeed": {
+          "description": "RANSAC seed. Fixed, so a rerun reproduces the same inlier set.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "ransacThresholdPx": {
+          "description": "RANSAC inlier threshold, in analysis pixels.",
+          "type": "number",
+          "format": "double"
+        },
+        "sessionGapSeconds": {
+          "description": "Sliding gap that separates two shooting sessions (`SPEC.md` §4.1).",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "sessionGapSeconds",
+        "focalTolerance",
+        "compatibilityThreshold",
+        "analysisLongestEdge",
+        "maxPairsPerSession",
+        "maxFeaturesPerPhoto",
+        "loweRatio",
+        "mutualMatch",
+        "ransacThresholdPx",
+        "ransacMaxIterations",
+        "ransacSeed",
+        "maxCorrespondences",
+        "minKeypointsForDecision",
+        "minMatchesForDecision",
+        "maxMegapixels"
+      ]
+    },
+    "ApplicationInfo": {
+      "description": "Application identity.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Application name.",
+          "type": "string"
+        },
+        "version": {
+          "description": "Application version.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ]
+    },
+    "Configuration": {
+      "description": "A device + shooting-mode combination (`SPEC.md` §2).",
+      "type": "object",
+      "properties": {
+        "deviceKey": {
+          "description": "Device identity without the mode, for per-device clock offsets and\nper-device scoring.",
+          "type": "string"
+        },
+        "displayName": {
+          "description": "Human-readable label for the UI.",
+          "type": "string"
+        },
+        "id": {
+          "description": "Stable configuration ID.",
+          "type": "string"
+        },
+        "make": {
+          "description": "EXIF `Make`, when known.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "modeLabel": {
+          "description": "Normalized mode label, when known.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model": {
+          "description": "EXIF `Model`, when known.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "photoCount": {
+          "description": "Photos assigned to this configuration.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "id",
+        "deviceKey",
+        "displayName",
+        "photoCount"
+      ]
+    },
+    "CoordinateSystem": {
+      "description": "Coordinate system of a persisted transform. Only one value exists today; it\nis spelled out so a future addition is a schema change and not a guess.",
+      "oneOf": [
+        {
+          "description": "`[0, 1] × [0, 1]` over the oriented image, origin top-left, y down.",
+          "type": "string",
+          "const": "normalized-oriented"
+        }
+      ]
+    },
+    "Correspondence": {
+      "description": "A single inlier correspondence, in normalized coordinates.\n\nThe `photo` / `anchor` naming follows the persisted direction: within a\n[`PairResult`] the fields hold `a` and `b`; within an [`Alignment`] they hold\nthe member photo and the group anchor.",
+      "type": "object",
+      "properties": {
+        "anchor": {
+          "description": "Normalized point in the target (anchor) photo.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 2,
+          "minItems": 2
+        },
+        "angle": {
+          "description": "Local feature orientation in the source photo, in degrees.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "matchQuality": {
+          "description": "Descriptor-match quality in `[0, 1]`, higher is better.",
+          "type": "number",
+          "format": "double"
+        },
+        "photo": {
+          "description": "Normalized point in the source photo.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 2,
+          "minItems": 2
+        },
+        "reprojectionErrorNormalized": {
+          "description": "Reprojection error in normalized anchor units.",
+          "type": "number",
+          "format": "double"
+        },
+        "scale": {
+          "description": "Local feature scale in the source photo, normalized by its longest edge.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      },
+      "required": [
+        "photo",
+        "anchor",
+        "matchQuality",
+        "reprojectionErrorNormalized"
+      ]
+    },
+    "Dimensions": {
+      "description": "Original, oriented and analysis dimensions, retained so any persisted\nnormalized coordinate can be converted back to pixels (`SPEC.md` §3.3).",
+      "type": "object",
+      "properties": {
+        "analysis": {
+          "description": "Dimensions of the reduced analysis image, when one was produced.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "maxItems": 2,
+          "minItems": 2
+        },
+        "oriented": {
+          "description": "Dimensions after applying orientation.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "maxItems": 2,
+          "minItems": 2
+        },
+        "original": {
+          "description": "Dimensions as stored in the file.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "maxItems": 2,
+          "minItems": 2
+        }
+      },
+      "required": [
+        "original",
+        "oriented"
+      ]
+    },
+    "FeatureSummary": {
+      "description": "Diagnostics from feature extraction.",
+      "type": "object",
+      "properties": {
+        "durationMs": {
+          "description": "Extraction wall time.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "keypoints": {
+          "description": "Keypoints retained.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "lowTexture": {
+          "description": "`true` when the count fell below\n[`AnalysisParameters::min_keypoints_for_decision`].",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "keypoints",
+        "durationMs",
+        "lowTexture"
+      ]
+    },
+    "Fingerprint": {
+      "description": "Cheap change-detection plus the content identity used for cache reuse\n(`SPEC.md` §3.1).",
+      "type": "object",
+      "properties": {
+        "modifiedAt": {
+          "description": "Modification time, RFC 3339. `None` when the filesystem does not report\none.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha256": {
+          "description": "SHA-256 of the file contents. The only field that is part of cache\n*identity*.",
+          "type": "string"
+        },
+        "size": {
+          "description": "File size in bytes.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "size",
+        "sha256"
+      ]
+    },
+    "FocalComparison": {
+      "description": "The focal comparison for one pair.",
+      "type": "object",
+      "properties": {
+        "relativeDifference": {
+          "description": "`abs(a - b) / min(a, b)`, when both values are known.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "state": {
+          "description": "Verdict.",
+          "$ref": "#/$defs/FocalCompatibility"
+        }
+      },
+      "required": [
+        "state"
+      ]
+    },
+    "FocalCompatibility": {
+      "description": "Result of comparing two focal lengths (`SPEC.md` §4.2).",
+      "oneOf": [
+        {
+          "description": "Both equivalent focal lengths known and within tolerance.",
+          "type": "string",
+          "const": "compatible"
+        },
+        {
+          "description": "Both known and outside tolerance.",
+          "type": "string",
+          "const": "incompatible"
+        },
+        {
+          "description": "At least one equivalent focal length unknown. Does not exclude visual\nanalysis; the visual evidence is the stronger signal.",
+          "type": "string",
+          "const": "unknown"
+        }
+      ]
+    },
+    "FocalSource": {
+      "description": "How the 35 mm equivalent focal length was obtained.",
+      "oneOf": [
+        {
+          "description": "Read from `FocalLengthIn35mmFilm`.",
+          "type": "string",
+          "const": "exif35mm"
+        },
+        {
+          "description": "Derived from the physical focal length and a known crop factor.",
+          "type": "string",
+          "const": "derived-from-crop-factor"
+        },
+        {
+          "description": "Unknown. Focal comparisons involving this photo are `uncertain`.",
+          "type": "string",
+          "const": "unknown"
+        }
+      ]
+    },
+    "GateFailure": {
+      "description": "Which hard gate failed. Every rejection names its gate (`PLAN-DROP1.md` §12.3).",
+      "oneOf": [
+        {
+          "description": "Fewer inliers than [`HardGates::min_inliers`].",
+          "type": "string",
+          "const": "inliers"
+        },
+        {
+          "description": "Median reprojection error above the limit.",
+          "type": "string",
+          "const": "reprojection-error"
+        },
+        {
+          "description": "Occupancy grid too concentrated in the first image.",
+          "type": "string",
+          "const": "spatial-distribution-a"
+        },
+        {
+          "description": "Occupancy grid too concentrated in the second image.",
+          "type": "string",
+          "const": "spatial-distribution-b"
+        },
+        {
+          "description": "Geometric overlap below [`HardGates::min_geometric_overlap`].",
+          "type": "string",
+          "const": "geometric-overlap"
+        },
+        {
+          "description": "Transform is singular or non-invertible.",
+          "type": "string",
+          "const": "degenerate"
+        },
+        {
+          "description": "Transform mirrors the image.",
+          "type": "string",
+          "const": "reflection"
+        },
+        {
+          "description": "Affine scale outside the plausible band.",
+          "type": "string",
+          "const": "scale"
+        },
+        {
+          "description": "Projective row too strong to be a plausible viewpoint change.",
+          "type": "string",
+          "const": "perspective"
+        }
+      ]
+    },
+    "Group": {
+      "description": "A comparison group.",
+      "type": "object",
+      "properties": {
+        "alignments": {
+          "description": "Alignments for every non-anchor member that has usable evidence.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Alignment"
+          }
+        },
+        "anchorPhotoId": {
+          "description": "Anchor photo. All alignments map into its coordinate system.",
+          "type": "string"
+        },
+        "evidence": {
+          "description": "Automatic evidence.",
+          "$ref": "#/$defs/GroupEvidence"
+        },
+        "flags": {
+          "description": "Flags worth surfacing.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GroupFlag"
+          }
+        },
+        "id": {
+          "description": "Stable group ID.",
+          "type": "string"
+        },
+        "photoIds": {
+          "description": "Members, anchor first, then by photo ID.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "anchorPhotoId",
+        "photoIds",
+        "evidence"
+      ]
+    },
+    "GroupEvidence": {
+      "description": "Evidence that produced a group, kept separate from manual decisions.",
+      "type": "object",
+      "properties": {
+        "compatibleMemberPairs": {
+          "description": "Non-anchor member pairs that were analyzed and found compatible.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "incompatibleMemberPairs": {
+          "description": "Non-anchor member pairs that were analyzed and found incompatible.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "meanAnchorScore": {
+          "description": "Mean composite score of the anchor→member pairs.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "minAnchorScore": {
+          "description": "Lowest composite score among anchor→member pairs.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "unverifiedMemberPairs": {
+          "description": "Non-anchor member pairs with no usable evidence.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "compatibleMemberPairs",
+        "incompatibleMemberPairs",
+        "unverifiedMemberPairs"
+      ]
+    },
+    "GroupFlag": {
+      "description": "Something worth surfacing about a group.",
+      "oneOf": [
+        {
+          "description": "Members disagree pairwise; the automatic rules would not have built this.",
+          "type": "string",
+          "const": "internal-disagreement"
+        },
+        {
+          "description": "More than one photo from the same configuration.",
+          "type": "string",
+          "const": "duplicate-configuration"
+        },
+        {
+          "description": "Contains a member added manually without supporting evidence.",
+          "type": "string",
+          "const": "manual-membership"
+        },
+        {
+          "description": "The anchor was chosen manually.",
+          "type": "string",
+          "const": "manual-anchor"
+        },
+        {
+          "description": "Some member pair was never analyzed.",
+          "type": "string",
+          "const": "unverified-pairs"
+        },
+        {
+          "description": "Score of at least one member is within 0.05 of the threshold, so the\ngroup deserves a human glance (`SPEC.md` §5.4).",
+          "type": "string",
+          "const": "near-threshold"
+        }
+      ]
+    },
+    "HardGates": {
+      "description": "Geometric hard gates (`SPEC.md` §5.2). A pair that fails any of these cannot\nbe compatible no matter how high the composite score is.",
+      "type": "object",
+      "properties": {
+        "gridSize": {
+          "description": "Side of the square occupancy grid.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "maxMedianReprojectionErrorPx": {
+          "description": "Maximum median reprojection error, in analysis pixels.",
+          "type": "number",
+          "format": "double"
+        },
+        "maxPerspective": {
+          "description": "Maximum projective row magnitude in normalized coordinates.",
+          "type": "number",
+          "format": "double"
+        },
+        "maxScale": {
+          "description": "Maximum affine scale ratio of the fitted transform.",
+          "type": "number",
+          "format": "double"
+        },
+        "minGeometricOverlap": {
+          "description": "Minimum geometric overlap.",
+          "type": "number",
+          "format": "double"
+        },
+        "minInliers": {
+          "description": "Minimum RANSAC inlier count.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "minOccupiedCells": {
+          "description": "Minimum occupied cells, required in *both* images.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "minScale": {
+          "description": "Minimum affine scale ratio of the fitted transform.",
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "minInliers",
+        "maxMedianReprojectionErrorPx",
+        "gridSize",
+        "minOccupiedCells",
+        "minGeometricOverlap",
+        "minScale",
+        "maxScale",
+        "maxPerspective"
+      ]
+    },
+    "ManualOverride": {
+      "description": "A recorded manual override.",
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "description": "When it was recorded, RFC 3339.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Stable override ID, assigned in application order.",
+          "type": "string"
+        },
+        "note": {
+          "description": "Optional user note.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "description": "Add a photo to a group, even without supporting evidence.",
+          "type": "object",
+          "properties": {
+            "group_id": {
+              "description": "Target group.",
+              "type": "string"
+            },
+            "op": {
+              "type": "string",
+              "const": "add-photo"
+            },
+            "photo_id": {
+              "description": "Photo to add.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "group_id",
+            "photo_id"
+          ]
+        },
+        {
+          "description": "Remove a photo from a group.",
+          "type": "object",
+          "properties": {
+            "group_id": {
+              "description": "Target group.",
+              "type": "string"
+            },
+            "op": {
+              "type": "string",
+              "const": "remove-photo"
+            },
+            "photo_id": {
+              "description": "Photo to remove.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "group_id",
+            "photo_id"
+          ]
+        },
+        {
+          "description": "Split the listed photos out of a group into a new one.",
+          "type": "object",
+          "properties": {
+            "group_id": {
+              "description": "Group to split.",
+              "type": "string"
+            },
+            "op": {
+              "type": "string",
+              "const": "split-group"
+            },
+            "photo_ids": {
+              "description": "Photos to move out.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "op",
+            "group_id",
+            "photo_ids"
+          ]
+        },
+        {
+          "description": "Merge several groups into the first one.",
+          "type": "object",
+          "properties": {
+            "group_ids": {
+              "description": "Groups to merge, target first.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "op": {
+              "type": "string",
+              "const": "merge-groups"
+            }
+          },
+          "required": [
+            "op",
+            "group_ids"
+          ]
+        },
+        {
+          "description": "Choose a different anchor.",
+          "type": "object",
+          "properties": {
+            "group_id": {
+              "description": "Target group.",
+              "type": "string"
+            },
+            "op": {
+              "type": "string",
+              "const": "set-anchor"
+            },
+            "photo_id": {
+              "description": "New anchor, which must be a member.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "group_id",
+            "photo_id"
+          ]
+        },
+        {
+          "description": "Permit more than one photo from the same configuration in a group.",
+          "type": "object",
+          "properties": {
+            "group_id": {
+              "description": "Target group.",
+              "type": "string"
+            },
+            "op": {
+              "type": "string",
+              "const": "allow-duplicate-configuration"
+            }
+          },
+          "required": [
+            "op",
+            "group_id"
+          ]
+        }
+      ],
+      "required": [
+        "id"
+      ]
+    },
+    "MetricWeights": {
+      "description": "Weights of the composite compatibility score (`SPEC.md` §5.4).",
+      "type": "object",
+      "properties": {
+        "alignedAppearanceSimilarity": {
+          "description": "Weight of [`PairMetrics::aligned_appearance_similarity`].",
+          "type": "number",
+          "format": "double"
+        },
+        "featureCoverage": {
+          "description": "Weight of [`PairMetrics::feature_coverage`].",
+          "type": "number",
+          "format": "double"
+        },
+        "geometricOverlap": {
+          "description": "Weight of [`PairMetrics::geometric_overlap`].",
+          "type": "number",
+          "format": "double"
+        },
+        "inlierConfidence": {
+          "description": "Weight of [`PairMetrics::inlier_confidence`].",
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "geometricOverlap",
+        "featureCoverage",
+        "inlierConfidence",
+        "alignedAppearanceSimilarity"
+      ]
+    },
+    "PairMetrics": {
+      "description": "Normalized components and raw diagnostics for one pair (`SPEC.md` §5.3).",
+      "type": "object",
+      "properties": {
+        "affineScale": {
+          "description": "Affine scale of the fitted transform (largest singular value).",
+          "type": "number",
+          "format": "double"
+        },
+        "alignedAppearanceSimilarity": {
+          "description": "Normalized component: gradient similarity over the registered overlap.",
+          "type": "number",
+          "format": "double"
+        },
+        "durationMs": {
+          "description": "Pair analysis wall time.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "featureCoverage": {
+          "description": "Normalized component: spatial extent and grid spread of inliers.",
+          "type": "number",
+          "format": "double"
+        },
+        "filteredMatches": {
+          "description": "Matches surviving the ratio test (and mutual check when enabled).",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "geometricOverlap": {
+          "description": "Normalized component: intersection over the smaller area, in the anchor\nframe.",
+          "type": "number",
+          "format": "double"
+        },
+        "inlierConfidence": {
+          "description": "Normalized component: count, ratio and reprojection quality combined.",
+          "type": "number",
+          "format": "double"
+        },
+        "inlierRatio": {
+          "description": "`inliers / filtered_matches`.",
+          "type": "number",
+          "format": "double"
+        },
+        "inliers": {
+          "description": "RANSAC inliers.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "keypointsA": {
+          "description": "Keypoints in the first photo.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "keypointsB": {
+          "description": "Keypoints in the second photo.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "medianReprojectionErrorPx": {
+          "description": "Median reprojection error, in analysis pixels.",
+          "type": "number",
+          "format": "double"
+        },
+        "occupiedCellsA": {
+          "description": "Occupied grid cells in the first photo.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "occupiedCellsB": {
+          "description": "Occupied grid cells in the second photo.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "registeredSsim": {
+          "description": "Post-registration SSIM. Diagnostic only; never decides compatibility.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      },
+      "required": [
+        "keypointsA",
+        "keypointsB",
+        "filteredMatches",
+        "inliers",
+        "inlierRatio",
+        "medianReprojectionErrorPx",
+        "occupiedCellsA",
+        "occupiedCellsB",
+        "geometricOverlap",
+        "featureCoverage",
+        "inlierConfidence",
+        "alignedAppearanceSimilarity",
+        "affineScale",
+        "durationMs"
+      ]
+    },
+    "PairReason": {
+      "description": "Why a pair ended up `uncertain`, or why it was not analyzed.",
+      "oneOf": [
+        {
+          "description": "Skipped by the per-session pair budget. Analyzable on demand.",
+          "type": "string",
+          "const": "budget"
+        },
+        {
+          "description": "One or both photos yielded too few keypoints.",
+          "type": "string",
+          "const": "low-texture"
+        },
+        {
+          "description": "Too few surviving descriptor matches to fit anything.",
+          "type": "string",
+          "const": "insufficient-matches"
+        },
+        {
+          "description": "RANSAC found no consensus.",
+          "type": "string",
+          "const": "no-consensus"
+        },
+        {
+          "description": "A hard gate failed.",
+          "type": "string",
+          "const": "gate-failed"
+        },
+        {
+          "description": "Gates passed but the composite score fell short.",
+          "type": "string",
+          "const": "score-below-threshold"
+        },
+        {
+          "description": "Both 35 mm equivalent focal lengths are known and outside tolerance, so\nthe pair was rejected without spending a visual analysis on it.",
+          "type": "string",
+          "const": "focal-mismatch"
+        },
+        {
+          "description": "A photo could not be decoded.",
+          "type": "string",
+          "const": "unreadable"
+        }
+      ]
+    },
+    "PairResult": {
+      "description": "One analyzed or skipped candidate pair.",
+      "type": "object",
+      "properties": {
+        "a": {
+          "description": "First photo ID, the lexicographically smaller of the two.",
+          "type": "string"
+        },
+        "b": {
+          "description": "Second photo ID.",
+          "type": "string"
+        },
+        "correspondences": {
+          "description": "Bounded, spatially sampled inlier correspondences in normalized\ncoordinates, `a` to `b`. Retained only for compatible pairs, which are\nthe only ones that can form a group (`SPEC.md` §7.2).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Correspondence"
+          }
+        },
+        "focal": {
+          "description": "Focal comparison.",
+          "$ref": "#/$defs/FocalComparison"
+        },
+        "gateFailures": {
+          "description": "Gates that failed.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GateFailure"
+          }
+        },
+        "hardGatesPassed": {
+          "description": "Whether every hard gate passed.",
+          "type": "boolean"
+        },
+        "homographyAToB": {
+          "description": "Row-major `3 × 3` homography mapping normalized oriented coordinates of\n`a` into those of `b`. Present whenever a transform was fitted, even if\nthe pair was rejected, so a rejection stays inspectable.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "id": {
+          "description": "Canonical pair ID, `pair-<a>-<b>` with `a < b` by photo ID.",
+          "type": "string"
+        },
+        "metrics": {
+          "description": "Metrics, when the pair was visually analyzed.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PairMetrics"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "description": "Why, when the verdict is not `compatible`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PairReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "score": {
+          "description": "Composite score, when it could be computed.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "sessionId": {
+          "description": "Session both photos belong to.",
+          "type": "string"
+        },
+        "state": {
+          "description": "Verdict.",
+          "$ref": "#/$defs/PairState"
+        },
+        "timeDistanceSeconds": {
+          "description": "Absolute capture-time distance, in seconds.",
+          "type": "integer",
+          "format": "int64"
+        }
+      },
+      "required": [
+        "id",
+        "a",
+        "b",
+        "sessionId",
+        "timeDistanceSeconds",
+        "state",
+        "hardGatesPassed",
+        "focal"
+      ]
+    },
+    "PairState": {
+      "description": "Outcome of a candidate pair. `Uncertain` is first class and is never coerced\ninto a decision (`SPEC.md` §2).",
+      "oneOf": [
+        {
+          "description": "Same scene: every hard gate passed and the score met the threshold.",
+          "type": "string",
+          "const": "compatible"
+        },
+        {
+          "description": "Enough evidence to conclude the photos do not show the same scene.",
+          "type": "string",
+          "const": "incompatible"
+        },
+        {
+          "description": "Evidence too weak to decide.",
+          "type": "string",
+          "const": "uncertain"
+        }
+      ]
+    },
+    "Photo": {
+      "description": "One input photo.",
+      "type": "object",
+      "properties": {
+        "configurationId": {
+          "description": "Configuration (device + mode) this photo belongs to.",
+          "type": "string"
+        },
+        "dimensions": {
+          "description": "Original, oriented and analysis dimensions.",
+          "$ref": "#/$defs/Dimensions"
+        },
+        "features": {
+          "description": "Feature-extraction diagnostics, when the photo was analyzed.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FeatureSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fingerprint": {
+          "description": "Content identity and change-detection fields.",
+          "$ref": "#/$defs/Fingerprint"
+        },
+        "id": {
+          "description": "Stable analysis ID, derived from the path relative to the source root.",
+          "type": "string"
+        },
+        "metadata": {
+          "description": "Normalized metadata.",
+          "$ref": "#/$defs/PhotoMetadata"
+        },
+        "notes": {
+          "description": "Non-fatal observations, for example an unreadable EXIF block.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "path": {
+          "description": "Path relative to the source root, using `/` separators.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "configurationId",
+        "fingerprint",
+        "dimensions",
+        "metadata"
+      ]
+    },
+    "PhotoMetadata": {
+      "description": "Normalized metadata for one photo.",
+      "type": "object",
+      "properties": {
+        "appliedTimeOffsetSeconds": {
+          "description": "Per-device offset applied, in seconds.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "cameraMake": {
+          "description": "EXIF `Make`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cameraModel": {
+          "description": "EXIF `Model`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "captureTimeSource": {
+          "description": "Where [`Self::captured_at`] came from.",
+          "$ref": "#/$defs/TimestampSource"
+        },
+        "capturedAt": {
+          "description": "Capture instant as recorded, RFC 3339.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "correctedAt": {
+          "description": "Capture instant after the per-device offset, RFC 3339. This is what\nsession detection uses.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "digitalZoomRatio": {
+          "description": "Digital zoom ratio, when reported.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "exifOrientation": {
+          "description": "EXIF orientation as found. `1` when absent or invalid.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "focalLength35mm": {
+          "description": "35 mm equivalent focal length, in millimetres.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "focalLengthMm": {
+          "description": "Physical focal length, in millimetres.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "focalSource": {
+          "description": "Where the equivalent focal length came from.",
+          "$ref": "#/$defs/FocalSource"
+        },
+        "lensModel": {
+          "description": "EXIF `LensModel`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "modeLabel": {
+          "description": "Normalized mode label, for example `photo`, `master` or `hd`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "modeTagRaw": {
+          "description": "Raw value of the tag that identifies the shooting mode.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "modeTagSource": {
+          "description": "Which EXIF tag the mode was read from.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "orientationAppliedByDecoder": {
+          "description": "`true` when the decoder already delivered oriented pixels, so the EXIF\norientation must *not* be applied again (HEIF container transforms).",
+          "type": "boolean"
+        },
+        "timezoneAssumed": {
+          "description": "`true` when no timezone was available and one was assumed.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "captureTimeSource",
+        "timezoneAssumed",
+        "appliedTimeOffsetSeconds",
+        "exifOrientation",
+        "orientationAppliedByDecoder",
+        "focalSource"
+      ]
+    },
+    "RunStats": {
+      "description": "Counters describing what the run actually did.",
+      "type": "object",
+      "properties": {
+        "analyzedPairs": {
+          "description": "Pairs visually analyzed in this run.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "budgetSkippedPairs": {
+          "description": "Pairs skipped by the budget.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "cancelled": {
+          "description": "`true` when the run stopped early because it was cancelled.",
+          "type": "boolean"
+        },
+        "candidatePairs": {
+          "description": "Candidate pairs generated.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "compatiblePairs": {
+          "description": "Pairs found compatible.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "durationMs": {
+          "description": "Total wall time.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "featuresExtracted": {
+          "description": "Photos whose features were extracted in this run.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "groups": {
+          "description": "Groups produced.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "incompatiblePairs": {
+          "description": "Pairs found incompatible.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "peakAnalysisPixels": {
+          "description": "Largest analysis image processed, in pixels. A crude peak-memory proxy.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "photos": {
+          "description": "Photos in the document.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "reusedPairs": {
+          "description": "Pair results reused from the previous document.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "sessions": {
+          "description": "Sessions detected.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "uncertainPairs": {
+          "description": "Pairs left uncertain.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "ungrouped": {
+          "description": "Photos in no group.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "photos",
+        "sessions",
+        "candidatePairs",
+        "analyzedPairs",
+        "reusedPairs",
+        "budgetSkippedPairs",
+        "compatiblePairs",
+        "incompatiblePairs",
+        "uncertainPairs",
+        "featuresExtracted",
+        "groups",
+        "ungrouped",
+        "durationMs",
+        "peakAnalysisPixels",
+        "cancelled"
+      ]
+    },
+    "Session": {
+      "description": "A chronological run of photos with no gap longer than the session gap.",
+      "type": "object",
+      "properties": {
+        "end": {
+          "description": "Last corrected capture time in the session, RFC 3339.",
+          "type": "string"
+        },
+        "id": {
+          "description": "Stable session ID.",
+          "type": "string"
+        },
+        "photoIds": {
+          "description": "Member photo IDs, in corrected-capture-time order.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "start": {
+          "description": "First corrected capture time in the session, RFC 3339.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "photoIds",
+        "start",
+        "end"
+      ]
+    },
+    "SourceInfo": {
+      "description": "Where the photos came from.",
+      "type": "object",
+      "properties": {
+        "generatedAt": {
+          "description": "When the analysis was produced, RFC 3339.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "root": {
+          "description": "Common source folder, when the inputs share one. Absent for an arbitrary\nfile selection.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "TimestampSource": {
+      "description": "Where a capture timestamp came from. Recorded because the answer changes how\nmuch the session assignment can be trusted.",
+      "oneOf": [
+        {
+          "description": "`DateTimeOriginal`, with `OffsetTimeOriginal` when present.",
+          "type": "string",
+          "const": "exif-date-time-original"
+        },
+        {
+          "description": "`CreateDate` / `DateTimeDigitized`.",
+          "type": "string",
+          "const": "exif-create-date"
+        },
+        {
+          "description": "`DateTime` (file change time recorded by the camera).",
+          "type": "string",
+          "const": "exif-modify-date"
+        },
+        {
+          "description": "Filesystem modification time. A weak fallback.",
+          "type": "string",
+          "const": "file-modified"
+        },
+        {
+          "description": "No usable timestamp. Forces manual grouping.",
+          "type": "string",
+          "const": "missing"
+        }
+      ]
+    },
+    "TransformDirection": {
+      "description": "Direction of a persisted transform.",
+      "oneOf": [
+        {
+          "description": "`anchorPoint ~ H · photoPoint`.",
+          "type": "string",
+          "const": "photo-to-anchor"
+        }
+      ]
+    },
+    "Ungrouped": {
+      "description": "An input photo that is in no group.",
+      "type": "object",
+      "properties": {
+        "detail": {
+          "description": "Optional human-readable detail.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "photoId": {
+          "description": "The photo.",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Machine-readable reason.",
+          "$ref": "#/$defs/UngroupedReason"
+        }
+      },
+      "required": [
+        "photoId",
+        "reason"
+      ]
+    },
+    "UngroupedReason": {
+      "description": "Why a photo joined no group. A normal outcome and a primary input to manual\ncorrection (`SPEC.md` §6).",
+      "oneOf": [
+        {
+          "description": "Alone in its session.",
+          "type": "string",
+          "const": "no-session-peer"
+        },
+        {
+          "description": "Session peers exist but none is focal-compatible.",
+          "type": "string",
+          "const": "no-focal-compatible-peer"
+        },
+        {
+          "description": "Every candidate pair was analyzed and rejected.",
+          "type": "string",
+          "const": "all-pairs-incompatible"
+        },
+        {
+          "description": "Every candidate pair ended `uncertain`.",
+          "type": "string",
+          "const": "all-pairs-uncertain"
+        },
+        {
+          "description": "Visually compatible with a peer, but every such peer belongs to a\nconfiguration already represented in the group. See\n[`AnalysisParameters::one_photo_per_configuration`].",
+          "type": "string",
+          "const": "no-distinct-configuration-peer"
+        },
+        {
+          "description": "Compatible with an anchor but incompatible with a member that anchor had\nalready accepted. This is what stops non-transitive evidence from\ncollapsing into one group.",
+          "type": "string",
+          "const": "inconsistent-with-group-members"
+        },
+        {
+          "description": "No usable capture timestamp, so no session could be assigned.",
+          "type": "string",
+          "const": "unusable-timestamp"
+        },
+        {
+          "description": "The file could not be read or decoded.",
+          "type": "string",
+          "const": "unreadable-file"
+        },
+        {
+          "description": "Removed from its group by a manual override.",
+          "type": "string",
+          "const": "manually-removed"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>camcomp</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>camcomp</h1>
+      <p id="capabilities" class="muted">checking engine…</p>
+    </header>
+
+    <main>
+      <section aria-labelledby="import-heading">
+        <h2 id="import-heading">Import</h2>
+        <div class="row">
+          <button id="pick-folder" type="button">Open folder…</button>
+          <button id="pick-files" type="button">Select files…</button>
+          <button id="cancel" type="button" disabled>Cancel analysis</button>
+        </div>
+        <p id="selection" class="muted">Nothing selected.</p>
+        <div
+          id="drop-zone"
+          tabindex="0"
+          role="button"
+          aria-describedby="drop-hint"
+        >
+          <span id="drop-hint">Drop photos or a camcomp.json here</span>
+        </div>
+      </section>
+
+      <section aria-labelledby="progress-heading">
+        <h2 id="progress-heading">Progress</h2>
+        <p id="stage" role="status" aria-live="polite">idle</p>
+        <progress id="bar" max="100" value="0" aria-labelledby="progress-heading"></progress>
+        <ul id="warnings" class="warnings" aria-label="Warnings"></ul>
+      </section>
+
+      <section aria-labelledby="result-heading">
+        <h2 id="result-heading">Result</h2>
+        <p id="summary" role="status" aria-live="polite">No analysis yet.</p>
+        <div id="groups"></div>
+        <details id="ungrouped-details" hidden>
+          <summary>Ungrouped photos</summary>
+          <ul id="ungrouped"></ul>
+        </details>
+      </section>
+    </main>
+
+    <script type="module" src="main.js"></script>
+  </body>
+</html>

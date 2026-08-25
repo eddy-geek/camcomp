@@ -1,0 +1,64 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/camcomp-core",
+    "crates/camcomp-cli",
+    "apps/desktop/src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.93"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/eddy-geek/camcomp"
+
+[workspace.dependencies]
+# Analysis core
+image = { version = "0.25.10", default-features = false, features = [
+    "jpeg",
+    "png",
+    "tiff",
+    "webp",
+] }
+heif-oxide = "0.1.0"
+kamadak-exif = "0.6.1"
+sift-features = "0.1.0"
+vision-geometry = "0.8.0"
+# Home of `Pt2`, `Mat3` and `RansacOptions`, which `vision-geometry` takes in its
+# public signatures but does not re-export. Used only by the registration
+# adapter; the types are converted at that boundary (ADR-DROP1 §6).
+vision-calibration-core = "0.8.0"
+ndarray = "0.16.1"
+sha2 = "0.11.0"
+rayon = "1.11"
+
+# Contract
+serde = { version = "1.0.229", features = ["derive"] }
+# `float_roundtrip` is not optional here. Without it serde_json's fast-path float
+# parser is off by up to one ulp, so a persisted homography or correspondence
+# drifts every time `camcomp.json` is loaded and rewritten. Verified: without the
+# feature, `115.37286376953125` is written correctly and read back as
+# `115.37286376953124`.
+serde_json = { version = "1.0.151", features = ["float_roundtrip"] }
+schemars = "1.2.2"
+chrono = { version = "0.4", default-features = false, features = [
+    "std",
+    "clock",
+    "serde",
+] }
+
+# Plumbing
+thiserror = "2.0"
+clap = { version = "4.5", features = ["derive"] }
+
+# `vision-geometry` pulls `getrandom` through `rand`; the WASM target needs the
+# `wasm_js` backend enabled by a direct dependency. Kept here so the requirement
+# is explicit rather than a transitive accident (ADR-DROP1 §3.6).
+getrandom = "0.4.3"
+
+camcomp-core = { path = "crates/camcomp-core" }
+
+[profile.release]
+debug = false
+lto = "thin"

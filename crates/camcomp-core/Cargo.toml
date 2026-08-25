@@ -1,0 +1,32 @@
+[package]
+name = "camcomp-core"
+description = "UI-independent photo grouping and alignment analysis engine for camcomp (Drop 1)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+image.workspace = true
+heif-oxide.workspace = true
+kamadak-exif.workspace = true
+sift-features.workspace = true
+vision-geometry.workspace = true
+vision-calibration-core.workspace = true
+ndarray.workspace = true
+sha2.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+
+# Extraction is sequential for now: the plan calls for bounded parallelism only
+# after profiling, and a 50 MP decode per worker is exactly the allocation that
+# needs measuring first (PLAN-DROP1 §11.1).
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { workspace = true, features = ["wasm_js"] }
+
+[features]
+default = []

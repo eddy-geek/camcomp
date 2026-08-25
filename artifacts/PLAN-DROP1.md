@@ -704,61 +704,66 @@ Also verify:
 
 ## 19. Drop 1 definition of done
 
+> **Status: see `IMPLEM-DROP1.md` §7.4 for the full met/not-met accounting with
+> evidence.** Checkboxes below are marked from that section; a deviation gets a
+> pointer to the section that justifies it rather than a bare unchecked box.
+
 ### 19.1 Functional
 
-- [ ] Inputs are inspected without modification.
-- [ ] Capture time, orientation, device, focal, dimensions, and mode metadata are represented.
-- [ ] Per-device clock offsets are supported.
-- [ ] Sessions use the 30-second sliding-gap rule.
-- [ ] Focal compatibility uses 35 mm equivalent values where possible and a `0.15` anchor tolerance.
-- [ ] Non-consecutive photos can be grouped.
-- [ ] SIFT matching tolerates moderate translation, rotation, scale, perspective, and processing differences.
-- [ ] Hard geometric gates are evaluated independently from the composite score.
-- [ ] Pair compatibility requires all gates and score `>= 0.80`.
-- [ ] Low-evidence cases can be `uncertain`.
-- [ ] Group construction does not use unchecked connected components.
-- [ ] Every input photo appears either in a group or in the ungrouped list with a reason.
-- [ ] Automatic groups and evidence are separate from manual overrides.
-- [ ] Human add/remove/split/merge/re-anchor operations are representable.
-- [ ] Thresholds, weights, and gates are the values calibrated in Phase 1 against the real sets, not the placeholders in the initial specification.
-- [ ] Every real set is classified correctly: its positive pair compatible, its two near-miss negatives not compatible.
+- [x] Inputs are inspected without modification.
+- [x] Capture time, orientation, device, focal, dimensions, and mode metadata are represented.
+- [x] Per-device clock offsets are supported.
+- [x] Sessions use a sliding-gap rule — shipped at 60 s, not 30 s; evidenced deviation, `IMPLEM-DROP1.md` §6.12.
+- [x] Focal compatibility is evaluated from 35 mm equivalent values — as an angle-of-view predicate with two tolerance tiers, not a single 0.15 focal-ratio anchor; `IMPLEM-DROP1.md` §6.11 explains why the ratio rule cannot satisfy the labels.
+- [x] Non-consecutive photos can be grouped.
+- [x] SIFT matching tolerates moderate translation, rotation, scale, perspective, and processing differences.
+- [x] Hard geometric gates are evaluated independently from the composite score.
+- [x] Pair compatibility requires all gates and score `>= 0.80`.
+- [x] Low-evidence cases can be `uncertain`.
+- [x] Group construction does not use unchecked connected components.
+- [x] Every input photo appears either in a group or in the ungrouped list with a reason.
+- [x] Automatic groups and evidence are separate from manual overrides.
+- [x] Human add/remove/split/merge/re-anchor operations are representable.
+- [ ] Thresholds, weights, and gates are the values calibrated in Phase 1 against the real sets, not the placeholders in the initial specification — kept at spec defaults on purpose; the composite score does not discriminate on the labelled set (`IMPLEM-DROP1.md` §6.3), so `thresholdsProvisional` stays `true`.
+- [ ] Every real set is classified correctly — 11 of 13 labelled groups reproduced automatically, 0 false positives (`IMPLEM-DROP1.md` §6.1); the 2 misses are named and each reachable by one override.
 
 ### 19.1bis Performance and scale
 
-- [ ] Pairs analyzed per session are bounded by an explicit budget; skipped pairs are `uncertain`, visible, and analyzable on demand.
-- [ ] A documented reference dataset (order of hundreds of photos) analyzes cold within a stated time on stated hardware, and warm-reloads near-instantly.
-- [ ] Peak memory is measured and documented for the native path, and bounded by an explicit guard.
-- [ ] Analysis is cancellable and resumable without losing completed work.
+- [x] Pairs analyzed per session are bounded by an explicit budget; skipped pairs are `uncertain`, visible, and analyzable on demand.
+- [ ] A documented reference dataset (order of hundreds of photos) analyzes cold within a stated time — warm reload is near-instant (met), but the largest reference set is six photos, so the hundreds-of-photos cold-time claim is untested; per-pair and per-decode costs are measured for extrapolation (`IMPLEM-DROP1.md` §6.10, §7.4).
+- [ ] Peak memory is measured and documented for the native path, and bounded by an explicit guard — measured (`peakAnalysisPixels`, ~150 MB for 50 MP) but no allocation guard beyond the pixel-count limit is enforced (`IMPLEM-DROP1.md` §7.4).
+- [x] Analysis is cancellable and resumable without losing completed work.
 
 ### 19.2 Alignment
 
-- [ ] Every non-anchor member has a normalized oriented photo-to-anchor homography.
-- [ ] Transform direction and row-major ordering are schema-defined.
-- [ ] A bounded spatially distributed set of inlier correspondences is persisted.
-- [ ] Full-resolution pointer mapping passes synthetic control-point tests.
-- [ ] Alignment confidence and fallback conditions are persisted.
+- [x] Every non-anchor member has a normalized oriented photo-to-anchor homography.
+- [x] Transform direction and row-major ordering are schema-defined.
+- [x] A bounded spatially distributed set of inlier correspondences is persisted.
+- [x] Full-resolution pointer mapping passes synthetic control-point tests.
+- [x] Alignment confidence and fallback conditions are persisted.
 
 ### 19.3 Cache and schema
 
-- [ ] `camcomp.json` has schema, application, and algorithm versions.
-- [ ] Parameters, weights, gates, diagnostics, sessions, pairs, groups, overrides, and alignments are persisted.
-- [ ] The generated JSON Schema is checked in.
-- [ ] Unchanged analysis is reusable.
-- [ ] Changed inputs invalidate only affected results.
-- [ ] Unsupported schema-major versions fail clearly.
-- [ ] Atomic writes protect the previous valid cache.
+- [x] `camcomp.json` has schema, application, and algorithm versions.
+- [x] Parameters, weights, gates, diagnostics, sessions, pairs, groups, overrides, and alignments are persisted.
+- [x] The generated JSON Schema is checked in.
+- [x] Unchanged analysis is reusable.
+- [x] Changed inputs invalidate only affected results.
+- [x] Unsupported schema-major versions fail clearly.
+- [x] Atomic writes protect the previous valid cache.
 
 ### 19.4 Architecture and quality
 
-- [ ] Core is usable as a Rust library and CLI without Tauri.
-- [ ] Dependency-specific types do not leak through core public contracts.
-- [ ] No OpenCV or Python runtime is shipped under the accepted Rust decision.
-- [ ] Tauri invokes the core directly and remains responsive.
-- [ ] Progress, cancellation, and typed errors are implemented.
-- [ ] Unit, integration, property, fixture, schema, and packaging tests pass.
-- [ ] Public APIs are documented.
-- [ ] Rust formatting and Clippy pass with warnings denied.
-- [ ] Runtime, memory, supported formats, and known limitations are documented.
+- [x] Core is usable as a Rust library and CLI without Tauri.
+- [x] Dependency-specific types do not leak through core public contracts.
+- [x] No OpenCV or Python runtime is shipped under the accepted Rust decision.
+- [ ] Tauri invokes the core directly and remains responsive — the shell compiles and its command surface is unit-tested, but no signed bundle was produced and the window was not opened in this environment (`IMPLEM-DROP1.md` §7.4, Gate B).
+- [x] Progress, cancellation, and typed errors are implemented.
+- [ ] Unit, integration, property, fixture, and schema tests pass — all do (`IMPLEM-DROP1.md` §7); packaging tests (Gate B smoke test, Gate C WASM) were not attempted.
+- [x] Public APIs are documented.
+- [x] Rust formatting and Clippy pass with warnings denied.
+- [x] Runtime, memory, supported formats, and known limitations are documented.
+- [x] IMPLEM-DROP1.md contains minimal useful implementation notes for handover.
 
 ## 20. Issues to resolve before or during Phase 0
 
