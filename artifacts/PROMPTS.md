@@ -89,3 +89,40 @@ Q: Should this DROP3 plan include feature-aligned pointer navigation using DROP1
 I would say (B) but it depends how hard it is. for sure, do say in the ADR what are the impacts on the archi choices, and then let me decide before the plan
 Q: Must the standalone Chrome PWA display HEIC photos in DROP3?
 can we supoprt only Safari ? or does it make the folder load more difficult ?
+
+
+Q: Which ADR D1 browser contract should the combined plan require?
+
+I would say try to cover A and D : degrade gracefully from native Safari towards js decoding with something like
+
+```
+import { heicTo, isHeic } from "heic-to"
+
+const file = fileInput.files[0]
+
+// Check if the file is HEIC/HEIF
+if (await isHeic(file)) {
+  // Convert to JPEG
+  const jpeg = await heicTo({
+    blob: file,
+    type: "image/jpeg",
+    quality: 0.8
+  })
+  
+  // Convert to PNG
+  const png = await heicTo({
+    blob: file,
+    type: "image/png"
+  })
+}
+```
+
+in the non-safari case, also attempt to load FOO.jpg before FOO.heic, so that the user can optimize easily by converting offline
+and same for file, support best UX available on each of Chromium-based/Safari/firefox browsers.
+
+Q: Which ADR D2 navigation scope should DROP3.1 include?
+Normalized plus global
+Q: Do you accept the ADR recommendation of Svelte + TypeScript + Vite for the shared PWA/Tauri frontend?
+Accept Svelte
+Q: Do you accept the gated OpenSeadragon/tile-pyramid strategy for approximately 50 MP photos?
+do "7.3 OpenSeadragon with simple image sources" i.e. us OpenSeaDragon so we can easily switch to a pyramid, but we'll only do that if we run into issues with the simple one.

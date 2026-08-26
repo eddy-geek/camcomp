@@ -1,6 +1,6 @@
 # ADR-DROP3: Web-First Import and Large-Image Viewer Architecture
 
-- **Status:** Proposed — two decisions remain in §16
+- **Status:** Accepted
 - **Date:** 2026-08-24
 - **Scope:** Drop 2 import/reload interface and Drop 3.1 comparison viewer
 - **Sources:** `REQUIREMENTS.md`, `SPEC.md`, `ADR-DROP1.md`, `IMPLEM-DROP1.md`, and `docs/GUIDE.md`
@@ -28,12 +28,14 @@ Drop 3.2 configurable tags, random order, blind mode, and Drop 4 scoring are out
 The following are product decisions, not options in this ADR:
 
 1. **Web-first static application.** The frontend should run as an installable static PWA where browser capabilities permit.
-2. **Tauri-only analysis for this delivery.** The Rust core compiles for `wasm32-unknown-unknown`, but the browser does not run new grouping analyses in Drops 2/3.1. Tauri remains the adapter for native path access, analysis, progress, cancellation, and writing `camcomp.json`.
+2. **Tauri-only analysis for this delivery.** The actual workspace passed `mise run check-wasm` for `camcomp-core` on 2026-08-24, including its `heif-oxide` dependency, but this proves target compilation only—not a browser binding, runtime HEIC decode, or acceptable memory behavior. The browser does not run new grouping analyses in Drops 2/3.1. Tauri remains the adapter for native path access, analysis, progress, cancellation, and writing `camcomp.json`.
 3. **Browser reload/viewing.** The standalone PWA may open an existing `camcomp.json`, resolve its photos from a user-granted folder or file selection, and display the result locally.
 4. **Load without automatic rescan.** A valid existing `camcomp.json` is shown immediately and is not automatically reconciled against current source files. Refresh/re-analysis is an explicit native action.
 5. **No graphical group editing in Drop 2.** The completed CLI/core override operations remain available, but add/remove/split/merge/re-anchor UI is deferred.
 6. **One combined implementation plan.** `PLAN-DROP2.md` will cover Drop 2 and Drop 3.1 after this ADR's remaining decisions are made.
 7. **No browser analysis export.** Because new analysis is native-only, the standalone PWA has no newly generated `camcomp.json` save flow in this delivery.
+8. **Cross-platform native code, no packaging.** Tauri adapters and the shared frontend remain portable across macOS, Windows, and Linux, but installers, signing, notarization, and release bundles are not acceptance criteria for this delivery.
+9. **Desktop-class browsers.** Safari, Chromium, and Firefox desktop are required; responsive layout is retained, but tablet and phone memory/touch acceptance is deferred.
 
 ## 3. Decision drivers
 
@@ -66,7 +68,7 @@ In priority order:
 - alignment confidence and provenance;
 - ungrouped photos and reasons.
 
-The frontend should consume generated TypeScript types or a checked schema-derived equivalent. It must not maintain a hand-written partial interpretation of the document that can drift from the Rust schema.
+The frontend should consume generated TypeScript types or a checked schema-derived equivalent. It must not maintain a hand-written partial interpretation of the document that can drift from the Rust schema. Where initial `SPEC.md` examples differ from completed Drop 1 behavior, the checked schema, Rust contracts, `IMPLEM-DROP1.md`, and `docs/GUIDE.md` are authoritative for this integration ADR; Drop 2/3.1 does not reopen algorithm defaults.
 
 ### 4.2 Coordinate system
 
@@ -148,71 +150,53 @@ Adopt **Svelte + TypeScript + Vite**, without SvelteKit. Use Vitest and Testing 
 
 Dependency versions should be pinned from reviewed releases at least seven days old when implementation begins. The research snapshot found active, permissively licensed releases of Svelte, Vite, Vitest, OpenSeadragon, and `img-comparison-slider`; this is evidence of availability, not permission to use floating versions.
 
-## 6. Runtime and file-acquisition options
+## 6. Runtime and file-acquisition decision
 
 Browser capabilities were checked against current MDN browser-compat-data and Can I Use data on 2026-08-24.
 
-| Capability | Chromium | Safari | Consequence |
-|---|---|---|---|
-| `showDirectoryPicker()` | Chrome 86+ | unavailable through Safari 26 | Chromium can retain a directory handle; Safari needs a file-input fallback |
-| `<input webkitdirectory>` | Chrome 7+ | Safari 11.1+ | both can read a complete nested folder and retain `webkitRelativePath` for the page lifetime |
-| user-visible writable file handles | available through picker handles | no picker path | Safari cannot update a selected source folder in place |
-| OPFS | Chrome 86+ | Safari 15.2+ | both can keep private derived display caches |
-| HEIF/HEIC image decode | unavailable in Chromium through the current compatibility table | Safari 17+ | Safari can be the browser HEIC path without adding a decoder |
-| service workers/PWA | available | available | both can run a static installable app shell |
+| Capability | Chromium | Safari | Firefox | Consequence |
+|---|---|---|---|---|
+| `showDirectoryPicker()` | Chrome 86+ | unavailable through Safari 26 | unavailable | Chromium receives the richer retained-directory-handle flow |
+| `<input webkitdirectory>` | Chrome 7+ | Safari 11.1+ | Firefox 50+ | all three can read a complete nested folder and retain `webkitRelativePath` for the page lifetime |
+| user-visible writable file handles | available through picker handles | no picker path | no picker path | only Chromium has the direct user-folder path, which is not required while analysis is native-only |
+| OPFS | Chrome 86+ | Safari 15.2+ | Firefox 111+ | all three can keep private derived display caches |
+| HEIF/HEIC image decode | unavailable through the current compatibility table | Safari 17+ | unavailable | Safari uses native decode; Chromium and Firefox need a sidecar, JavaScript/WASM decode, or Tauri |
+| service workers/static offline app | available | available | available | all three can run the static app; install UI remains browser-specific |
 
 `FileSystemFileHandle.createWritable()` exists in Safari 26 for handles such as OPFS entries, but Safari does not expose `showDirectoryPicker()` or an equivalent user-folder picker. It therefore does not provide Chromium-equivalent in-place access to a user's selected photo directory.
 
-### 6.1 Chromium-only PWA
+### 6.1 Accepted capability-based browser contract
 
-**Advantages**
+Use one `SourceProvider` interface with browser-specific capability adapters:
 
-- best folder workflow through `showDirectoryPicker()`;
-- handles can be stored in IndexedDB and permission can be requested again;
-- `camcomp.json` can be found directly without flattening a selection;
-- strongest path to later in-place browser writes if browser analysis is revisited.
+- `DirectoryHandleSourceProvider` for Chromium's best folder UX;
+- `DirectoryInputSourceProvider` for Safari, Firefox, and fallback Chromium using `<input webkitdirectory>`;
+- drag/drop adapters that preserve relative paths where the runtime exposes them and otherwise request the containing folder;
+- `TauriSourceProvider` for native paths, analysis, and persistence.
 
-**Disadvantages**
+The application feature-detects behavior rather than branching on browser names. Chromium may retain a directory handle and request permission again. Safari and Firefox reconstruct the selected tree from `webkitRelativePath` and require folder reselection after restart. The static application remains usable in all three; it does not promise identical filesystem or installation UX where browser capabilities differ.
 
-- no native HEIC image display;
-- a browser HEIC decoder or a Tauri fallback is required for a supported Drop 1 format;
-- committing to Chromium for folder access does not solve the 50 MP rendering problem.
+### 6.2 HEIC source-resolution cascade
 
-### 6.2 Safari-only PWA
+Resolve each document photo deterministically:
 
-**Advantages**
+1. use the exact referenced HEIC/HEIF when the runtime passes an actual decode capability test, as expected on Safari;
+2. when native HEIC decode is unavailable, look for an explicitly user-provided same-stem `.jpg`, `.jpeg`, then `.png` sidecar before invoking a decoder;
+3. accept a sidecar only when its oriented dimensions match the `camcomp.json` record, label the substitution in the UI, and retain the original photo identity and EXIF from the analysis document;
+4. otherwise decode the exact HEIC/HEIF in a worker through a separately audited JavaScript/WASM codec;
+5. if decoding is unsupported, invalid, too large for the memory guard, or fails, preserve the rest of the group and direct that photo to the Tauri fallback.
 
-- native HEIC/HEIF display in Safari 17+;
-- recursive folder import works through `<input webkitdirectory>`;
-- static PWA, Blob URLs, Canvas, workers, and OPFS are available;
-- no browser HEIC decoder dependency is needed.
+A sidecar has different bytes and may have different compression or color rendering. It is therefore an explicit viewing substitution, never cache identity and never silent evidence that the source is unchanged.
 
-**Disadvantages**
+The full-detail decoder must return a bitmap or lossless display source. Converting to JPEG at quality `0.8` would add artifacts to the material being compared and is not acceptable for full-detail viewing. A bounded lossy preview is permitted only when identified as a preview and replaced before detail comparison.
 
-- no `showDirectoryPicker()` and no retained user-directory handle;
-- users must select the folder again after page/application restart;
-- the file list is flattened and its tree must be reconstructed from `webkitRelativePath`;
-- no direct user-folder write path, although that is not required while analysis is Tauri-only.
+[`heic-to`](https://github.com/hoppergee/heic-to) is an active candidate with worker and `ImageBitmap` paths, but the researched package is approximately 24 MB unpacked and LGPL-3.0 because it embeds libheif. The existing MIT/Apache-2.0 `heif-oxide` decoder already handles the Drop 1 fixtures and compiles as part of `camcomp-core` for WASM. The implementation plan must compare a narrow `heif-oxide` WASM wrapper with `heic-to` for fixture coverage, color/orientation correctness, CSP compatibility, bundle size, runtime, peak memory, and license obligations before selecting either.
 
-Safari-only is viable for the decided read-only browser role, but its folder UX is less persistent.
-
-### 6.3 Capability-based Safari and Chromium PWA
-
-Use one `SourceProvider` interface with two browser implementations:
-
-- `DirectoryHandleSourceProvider` for Chromium;
-- `DirectoryInputSourceProvider` for Safari and other browsers with `webkitdirectory`;
-- `TauriSourceProvider` for native paths and analysis.
-
-The application feature-detects behavior rather than user-agent strings. Safari provides the no-extra-decoder HEIC path. Chromium provides the best directory-handle path and displays JPEG/PNG; an HEIC group there can direct the user to Safari or Tauri until a separately gated decoder is added.
-
-**Recommendation:** support both Safari and Chromium through capability adapters. This avoids choosing between good folder access and native HEIC, while keeping all browser behavior read-only. If only one browser is accepted initially, Safari is defensible because HEIC is already a Drop 1 format and direct browser writes are not needed.
-
-### 6.4 Import resolution behavior
+### 6.3 Import resolution behavior
 
 - Opening a folder enumerates enough entries to find `camcomp.json` and resolve paths, but does not trigger a metadata/fingerprint rescan.
 - Dropping/opening `camcomp.json` alone loads and validates it, then asks for the source folder or files required to resolve photo paths.
-- Missing, renamed, or digest-mismatched source files are reported; browser mode does not silently repair or overwrite the document.
+- Missing paths and cheap size/mtime mismatches are reported during resolution. Content hashing is reserved for an explicit verify/refresh action, so loading a cached analysis does not become an automatic rescan. Browser mode does not silently repair or overwrite the document.
 - Selecting photos without an analysis is accepted in Tauri and starts native analysis. In the standalone PWA it explains that new analysis requires the desktop application.
 - Browser object URLs are scoped to the active album/group and revoked when no longer used.
 
@@ -260,15 +244,15 @@ A custom renderer is the fallback if a library cannot satisfy the mapping or loc
 - mature pan/zoom interactions, bounds handling, coordinate conversion, touch input, and viewport APIs;
 - straightforward synchronization of two to four viewers;
 - framework-neutral and BSD-3-Clause licensed;
-- local Blob/object URLs can be presented as image sources.
+- local Blob/object URLs can be presented as image sources;
+- keeps the viewer API compatible with a later tiled source without paying the pyramid cost before measurements require it.
 
 **Disadvantages**
 
 - a simple source still decodes the entire 50 MP image;
 - multiple viewer instances require an explicit shared-navigation controller;
-- OpenSeadragon does not understand `camcomp.json` homographies by itself.
-
-This is useful to validate interaction and mapping, but it does not by itself satisfy the large-image memory constraint.
+- OpenSeadragon does not understand `camcomp.json` homographies by itself;
+- decoded-memory pressure may still make groups of three or four impractical on some machines.
 
 ### 7.4 OpenSeadragon with tiled pyramids
 
@@ -276,28 +260,26 @@ This is useful to validate interaction and mapping, but it does not by itself sa
 
 - visible-resolution tiles are loaded on demand and evicted;
 - the viewer is designed for images substantially larger than 50 MP;
-- one renderer can support grid, synchronized navigation, overlays, and a clipped two-viewer slider;
-- application code can focus on camcomp groups and coordinate mapping.
+- the navigation and composition layers can stay unchanged when simple sources are replaced with pyramids.
 
 **Disadvantages**
 
 - local originals do not arrive as Deep Zoom pyramids;
 - pyramid generation has a one-time full-decode cost and requires progress, cancellation, storage, and invalidation;
 - Tauri and browser environments need different tile-cache adapters;
-- browser-generated HEIC pyramids are practical only where the browser can decode HEIC.
+- browser-generated HEIC pyramids are practical only after HEIC decode succeeds.
 
-### 7.5 Rendering recommendation
+### 7.5 Accepted rendering decision
 
-Adopt an **OpenSeadragon-based viewer behind `PhotoPyramidProvider` and `ViewerAdapter` interfaces**, conditional on an early 50 MP gate:
+Adopt an **OpenSeadragon-based viewer with simple image sources first**, behind `PhotoSourceProvider` and `ViewerAdapter` interfaces:
 
-1. render bounded previews first for fast group display;
-2. generate/load a digest-keyed tile pyramid on demand when the user zooms;
-3. keep Tauri pyramids in the application cache, never beside source photos;
-4. keep browser pyramids in OPFS and process one source at a time;
-5. prove Safari JPEG/PNG/HEIC and Chromium JPEG/PNG behavior on real 50 MP fixtures;
-6. reject the library if measured memory, local tile delivery, or multi-view synchronization is unacceptable.
+1. resolve an exact, sidecar, native-decoded, or worker-decoded local display source through `PhotoSourceProvider`;
+2. open that source through OpenSeadragon's simple-image path;
+3. keep only the active group resident and release viewer, bitmap, Blob URL, and decoder resources when leaving it;
+4. measure Safari, Chromium, Firefox, and Tauri with real JPEG, PNG, and HEIC groups near 50 MP;
+5. preserve source and viewer boundaries that permit a later tiled provider without changing Svelte components, navigation state, slider composition, or alignment mapping.
 
-The gate must compare this path with a native `<img>`/CSS baseline. OpenSeadragon is selected for the work it avoids only when used with actual tiled sources.
+Tile-pyramid generation is a contingency, not part of the initial delivery. Trigger it only if the measured simple-source path exceeds the accepted memory budget, crashes, cannot keep interactions responsive, or cannot display the required group sizes. A pyramid may then be cached in Tauri application storage or browser OPFS, never beside source photos.
 
 ## 8. Two-image comparison slider
 
@@ -317,7 +299,7 @@ This maintained MIT-licensed Web Component provides an accessible two-slot compa
 
 Two overlaid viewer containers, one clipped by a range-controlled divider, are a limited custom component. It avoids an integration dependency and can share the same viewer instances and canonical navigation state as grid mode.
 
-**Recommendation:** run a narrow integration spike with `img-comparison-slider`. Adopt it only if nested OpenSeadragon interaction and keyboard accessibility pass. Otherwise implement the small clipping/divider shell locally; do not fork Juxtapose.
+**Recommendation:** run a narrow integration spike with `img-comparison-slider`. Adopt it only if nested OpenSeadragon interaction and keyboard accessibility pass. Otherwise implement the small clipping/divider shell locally; do not fork Juxtapose. Check also https://github.com/locomo/openseadragon-curtain-sync
 
 ## 9. Improve-ImgSLI audit
 
@@ -457,9 +439,12 @@ Plain TypeScript services
 │   ├── DirectoryHandleSourceProvider (Chromium)
 │   ├── DirectoryInputSourceProvider (Safari/fallback)
 │   └── TauriSourceProvider
-├── PhotoPyramidProvider
-│   ├── BrowserOpfsPyramidProvider
-│   └── TauriCachePyramidProvider
+├── PhotoSourceProvider
+│   ├── NativeBrowserPhotoSourceProvider
+│   ├── SidecarPhotoSourceProvider
+│   ├── WorkerHeicPhotoSourceProvider
+│   ├── TauriPhotoSourceProvider
+│   └── TiledPhotoSourceProvider (contingency)
 ├── PointMapper
 │   ├── NormalizedPointMapper
 │   ├── GlobalHomographyPointMapper
@@ -503,7 +488,9 @@ The adapters exchange camcomp-owned IDs, normalized coordinates, typed progress,
 - object URL and viewer instance cleanup;
 - PWA offline app-shell startup without caching private inputs.
 
-Playwright should cover Chromium and WebKit. File-picker calls require injected adapters for deterministic CI plus manual smoke tests against real browser pickers and Tauri dialogs.
+Playwright should cover Chromium, WebKit, and Firefox. File-picker calls require injected adapters for deterministic CI plus manual smoke tests against real browser pickers and Tauri dialogs.
+
+Main coverage on Chromium with just sanity checks on the others.
 
 ### 13.3 Large-image acceptance gate
 
@@ -513,8 +500,9 @@ Use representative JPEG, PNG, and HEIC sources near 50 MP and measure:
 - time to first zoomable full-detail region;
 - peak browser and Tauri memory for groups of two, three, and four;
 - interaction frame consistency during pan/zoom;
-- tile-cache size, eviction, cancellation, and invalidation after digest change;
+- simple-source decode duplication, release behavior, and group-to-group memory recovery;
 - color/orientation parity with the Drop 1 oriented dimensions;
+- if the pyramid contingency is triggered, tile-cache size, eviction, cancellation, and invalidation after digest change;
 - no retained decoded buffers or object URLs after changing groups.
 
 No renderer is accepted based only on a small demo image.
@@ -531,7 +519,7 @@ Accept each browser target only when a nested real folder can load `camcomp.json
 
 ### Gate C — large-image viewer
 
-Accept OpenSeadragon with tiled providers only when the 50 MP matrix in §13.3 stays within a recorded memory budget and remains responsive. Otherwise evaluate the custom renderer contingency behind the same provider/adapter interfaces.
+Accept OpenSeadragon with simple sources when the 50 MP matrix in §13.3 stays within a recorded memory budget, releases memory between groups, and remains responsive. If it fails, keep OpenSeadragon and evaluate a tiled `PhotoSourceProvider` first; a custom renderer is the second contingency behind the same adapter interfaces.
 
 ### Gate D — slider composition
 
@@ -539,43 +527,28 @@ Accept `img-comparison-slider` only if nested viewers preserve pointer, wheel, t
 
 ### Gate E — aligned navigation
 
-If Mode B is included, compare mapped centers against Drop 1 synthetic control points and real groups. It must fall back visibly and deterministically when alignment is absent, low-confidence, invalid, or outside reliable coverage.
+Compare mapped centers against Drop 1 synthetic controls and independent real-scene landmark probes labelled before implementation. Mode B must meet predefined mapping-error/improvement thresholds and fall back visibly and deterministically when alignment is absent, low-confidence, invalid, or outside reliable coverage.
 
-## 15. Proposed decision
-
-Subject to the choices in §16:
+## 15. Decision
 
 1. Replace the Drop 1 page with **Svelte + TypeScript + Vite** and produce one static frontend for PWA and Tauri.
 2. Keep analysis native through a typed `AnalysisRepository`; the PWA only loads existing analyses in this delivery.
-3. Use capability-based source providers rather than browser-specific application branches.
-4. Support Safari's recursive directory input/native HEIC path and Chromium's directory-handle/JPEG/PNG path unless a narrower initial browser target is chosen.
-5. Provisionally use **OpenSeadragon with real tile pyramids**, not simple-image sources, after the 50 MP gate.
-6. Test `img-comparison-slider` as the two-photo composition shell and keep a small custom clipping shell as the fallback.
-7. Treat Improve-ImgSLI and Juxtapose as UX/test references, not dependencies or fork bases.
-8. Build navigation around canonical normalized anchor-space state and a pluggable `PointMapper`.
-9. Always provide normalized synchronized navigation; optionally add global-homography feature-centered navigation in the same plan; defer local correspondence refinement.
-10. Keep all derived image data outside source folders and prevent the PWA service worker from caching private inputs.
+3. Support Chromium, Safari, and Firefox through capability-based source providers and the best folder UX each exposes.
+4. Use native Safari HEIC decode where available; otherwise prefer a validated same-stem sidecar, then an audited worker decoder, then Tauri fallback.
+5. Compare `heif-oxide` WASM with `heic-to` before selecting the non-native HEIC decoder; do not use lossy conversion as the full-detail source.
+6. Use **OpenSeadragon with simple image sources first** and preserve a tiled-source contingency if measured 50 MP behavior fails.
+7. Test `img-comparison-slider` as the two-photo composition shell and keep a small custom clipping shell as the fallback.
+8. Treat Improve-ImgSLI and Juxtapose as UX/test references, not dependencies or fork bases.
+9. Build navigation around canonical normalized anchor-space state and a pluggable `PointMapper`.
+10. Ship normalized synchronized navigation first and switchable global-homography feature-centered navigation second; defer local correspondence refinement.
+11. Keep all derived image data outside source folders and prevent the PWA service worker from caching private inputs.
 
-## 16. Decisions required before `PLAN-DROP2.md`
+## 16. Resolved decision record
 
-### D1 — initial standalone browser contract
-
-Choose one:
-
-- **D1-A (recommended): Safari + Chromium adapters.** Safari supports HEIC with folder reselection; Chromium supports persistent directory handles for JPEG/PNG; Tauri handles analysis and all formats.
-- **D1-B: Safari-first.** Require Safari 17+ for the standalone viewer, use `webkitdirectory`, and accept folder reselection. Add Chromium later.
-- **D1-C: Chromium-first.** Require Chromium for folder handles, support JPEG/PNG in-browser, and direct HEIC users to Tauri. Add Safari later.
-- **D1-D: Chromium plus browser HEIC decoder.** Add a separately audited/benchmarked HEIC WASM decoder and retain Chromium-only browser UX. This adds codec, licensing, memory, and bundle risk.
-
-### D2 — Drop 3.1 alignment scope
-
-Choose one:
-
-- **D2-A: normalized only.** Ship Mode A, but retain canonical scene state and mapper interfaces for later modes.
-- **D2-B (recommended): normalized plus global alignment.** Ship Mode A as fallback and Mode B as a switchable second stage in the combined plan.
-- **D2-C: all point-mapping modes.** Also implement local correspondence refinement in this plan; this expands Drop 3.1 beyond its stated first-version requirement.
-
-Once D1 and D2 are chosen, this ADR can move from Proposed to Accepted and the combined Drop 2/Drop 3.1 implementation plan can be written without unresolved architecture branches.
+- **D1 — browser contract:** capability-based Chromium, Safari, and Firefox support, combining native HEIC where available with sidecar and audited worker-decoder fallbacks.
+- **D2 — alignment scope:** normalized synchronized navigation plus switchable global-homography feature-centered navigation; local correspondence refinement is deferred.
+- **D3 — frontend:** Svelte + TypeScript + Vite accepted.
+- **D4 — large-image source:** OpenSeadragon simple-image sources first; tile pyramids are triggered only by measured failures at the large-image gate.
 
 ## 17. References
 
@@ -587,5 +560,7 @@ Once D1 and D2 are chosen, this ADR can move from Proposed to Accepted and the c
 - [OpenSeadragon](https://openseadragon.github.io/)
 - [OpenSeadragon repository](https://github.com/openseadragon/openseadragon)
 - [`img-comparison-slider`](https://github.com/sneas/img-comparison-slider)
+- [`heic-to`](https://github.com/hoppergee/heic-to)
+- [`heif-oxide`](https://github.com/dan335/heif-oxide)
 - [Knight Lab Juxtapose](https://github.com/NUKnightLab/juxtapose)
 - [Improve-ImgSLI](https://github.com/Loganavter/Improve-ImgSLI)
