@@ -1,34 +1,38 @@
 {
-  "$schema": "https://schema.tauri.app/config/2",
   "productName": "camcomp",
   "version": "0.1.0",
   "identifier": "dev.camcomp.desktop",
   "build": {
-    "frontendDist": "../dist"
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://127.0.0.1:5173",
+    "frontendDist": "../../web/dist"
   },
   "app": {
     "windows": [
       {
         "title": "camcomp",
-        "width": 1200,
-        "height": 820,
+        "width": 1400,
+        "height": 900,
+        "minWidth": 900,
+        "minHeight": 650,
         "resizable": true
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'"
+      "assetProtocol": {
+        "enable": true,
+        "scope": []
+      },
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost blob: data:; connect-src 'self' ipc: http://ipc.localhost ws://127.0.0.1:5173"
     }
   },
   "bundle": {
-    "active": true,
-    "targets": [
-      "app",
-      "dmg"
-    ],
+    "active": false,
     "icon": [
       "icons/icon.png"
     ],
     "shortDescription": "Compare photos from several cameras or modes",
-    "longDescription": "camcomp groups photos that show the same scene, taken within one shooting session by different devices or shooting modes, and keeps the analysis in a cacheable camcomp.json beside the photos."
+    "longDescription": "camcomp loads cached local analyses or groups photos natively, then compares every group member in a synchronized local viewer."
   }
 }

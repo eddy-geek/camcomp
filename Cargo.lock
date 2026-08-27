@@ -454,6 +454,7 @@ dependencies = [
  "sha2 0.11.0",
  "sift-features",
  "thiserror 2.0.20",
+ "unicode-normalization",
  "vision-calibration-core",
  "vision-geometry",
 ]
@@ -463,6 +464,8 @@ name = "camcomp-desktop"
 version = "0.1.0"
 dependencies = [
  "camcomp-core",
+ "heif-oxide",
+ "image",
  "serde",
  "serde_json",
  "tauri",
@@ -1836,6 +1839,12 @@ dependencies = [
  "http-body",
  "pin-project-lite",
 ]
+
+[[package]]
+name = "http-range"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "21dec9db110f5f872ed9699c3ecf50cf16f423502706ba5c72462e28d3157573"
 
 [[package]]
 name = "httparse"
@@ -4424,6 +4433,7 @@ dependencies = [
  "gtk",
  "heck 0.5.0",
  "http",
+ "http-range",
  "jni",
  "libc",
  "log",
@@ -5099,6 +5109,15 @@ name = "unicode-ident"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+
+[[package]]
+name = "unicode-normalization"
+version = "0.1.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5033c97c4262335cded6d6fc3e5c18ab755e1a3dc96376350f3d8e9f009ad956"
+dependencies = [
+ "tinyvec",
+]
 
 [[package]]
 name = "unicode-segmentation"

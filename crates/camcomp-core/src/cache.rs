@@ -251,7 +251,8 @@ pub fn photo_id_for_path(relative_path: &str) -> String {
 mod tests {
     use super::*;
     use crate::schema::{
-        Dimensions, FocalSource, Photo, PhotoMetadata, TimestampSource, Ungrouped, UngroupedReason,
+        Configuration, Dimensions, FocalSource, Photo, PhotoMetadata, TimestampSource, Ungrouped,
+        UngroupedReason,
     };
 
     /// Process-unique so two concurrent `cargo test` invocations cannot delete
@@ -266,6 +267,15 @@ mod tests {
 
     fn document_with(id: &str) -> AnalysisDocument {
         let mut doc = AnalysisDocument::default();
+        doc.configurations.push(Configuration {
+            id: "device".into(),
+            device_key: "device".into(),
+            make: None,
+            model: None,
+            mode_label: None,
+            display_name: "Test device".into(),
+            photo_count: 1,
+        });
         doc.photos.push(Photo {
             id: id.to_string(),
             path: "a.jpg".into(),

@@ -46,7 +46,11 @@ impl Stage {
 
 /// A progress notification.
 #[derive(Debug, Clone, Serialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
 pub enum ProgressEvent {
     /// A stage started. `total` is `None` when the work is not countable yet.
     StageStarted {
@@ -230,5 +234,13 @@ mod tests {
         .unwrap();
         assert!(json.contains("\"kind\":\"stage-started\""), "{json}");
         assert!(json.contains("\"stage\":\"pairs\""), "{json}");
+
+        let finished = serde_json::to_string(&ProgressEvent::StageFinished {
+            stage: Stage::Pairs,
+            elapsed_ms: 42,
+        })
+        .unwrap();
+        assert!(finished.contains("\"elapsedMs\":42"), "{finished}");
+        assert!(!finished.contains("elapsed_ms"), "{finished}");
     }
 }

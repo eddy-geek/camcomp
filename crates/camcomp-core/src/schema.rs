@@ -7,10 +7,11 @@
 //! Field naming is `camelCase` in JSON and `snake_case` in Rust. Unknown fields
 //! are ignored on read so a newer minor version stays loadable.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use unicode_normalization::UnicodeNormalization;
 
 use crate::geometry::Mat3;
 
@@ -1094,6 +1095,53 @@ impl Default for AnalysisDocument {
     }
 }
 
+fn unique_ids<'a>(
+    label: &str,
+    ids: impl IntoIterator<Item = &'a str>,
+) -> crate::Result<BTreeSet<&'a str>> {
+    let mut seen = BTreeSet::new();
+    for id in ids {
+        if id.is_empty() {
+            return Err(crate::Error::InconsistentDocument(format!(
+                "{label} ID is empty"
+            )));
+        }
+        if !seen.insert(id) {
+            return Err(crate::Error::InconsistentDocument(format!(
+                "duplicate {label} ID `{id}`"
+            )));
+        }
+    }
+    Ok(seen)
+}
+
+fn normalized_document_path(path: &str) -> crate::Result<String> {
+    let with_slashes = path.replace('\\', "/");
+    if with_slashes.is_empty()
+        || with_slashes.starts_with('/')
+        || with_slashes.as_bytes().get(1) == Some(&b':')
+    {
+        return Err(crate::Error::InconsistentDocument(format!(
+            "photo path `{path}` is not source-root-relative"
+        )));
+    }
+    let mut segments = Vec::new();
+    for segment in with_slashes.split('/') {
+        let normalized: String = segment.nfc().collect();
+        if normalized.is_empty()
+            || normalized == "."
+            || normalized == ".."
+            || normalized.chars().any(char::is_control)
+        {
+            return Err(crate::Error::InconsistentDocument(format!(
+                "photo path `{path}` contains an invalid segment"
+            )));
+        }
+        segments.push(normalized);
+    }
+    Ok(segments.join("/"))
+}
+
 impl AnalysisDocument {
     /// Look up a photo by ID.
     pub fn photo(&self, id: &str) -> Option<&Photo> {
@@ -1132,6 +1180,102 @@ impl AnalysisDocument {
             )));
         }
 
+        let configuration_ids = unique_ids(
+            "configuration",
+            self.configurations.iter().map(|item| item.id.as_str()),
+        )?;
+        let photo_ids = unique_ids("photo", self.photos.iter().map(|item| item.id.as_str()))?;
+        let session_ids = unique_ids("session", self.sessions.iter().map(|item| item.id.as_str()))?;
+        unique_ids("pair", self.pairs.iter().map(|item| item.id.as_str()))?;
+        unique_ids("group", self.groups.iter().map(|item| item.id.as_str()))?;
+        unique_ids(
+            "manual override",
+            self.manual_overrides.iter().map(|item| item.id.as_str()),
+        )?;
+
+        let mut normalized_paths = BTreeMap::new();
+        for photo in &self.photos {
+            if !configuration_ids.contains(photo.configuration_id.as_str()) {
+                return Err(crate::Error::InconsistentDocument(format!(
+                    "photo `{}` references unknown configuration `{}`",
+                    photo.id, photo.configuration_id
+                )));
+            }
+            let normalized = normalized_document_path(&photo.path)?;
+            if let Some(previous) = normalized_paths.insert(normalized.clone(), photo.id.as_str()) {
+                return Err(crate::Error::InconsistentDocument(format!(
+                    "photos `{previous}` and `{}` have duplicate normalized path `{normalized}`",
+                    photo.id
+                )));
+            }
+        }
+
+        let mut session_membership = BTreeMap::new();
+        for session in &self.sessions {
+            let mut local_members = BTreeSet::new();
+            for photo_id in &session.photo_ids {
+                if !photo_ids.contains(photo_id.as_str()) {
+                    return Err(crate::Error::InconsistentDocument(format!(
+                        "session `{}` references unknown photo `{photo_id}`",
+                        session.id
+                    )));
+                }
+                if !local_members.insert(photo_id.as_str()) {
+                    return Err(crate::Error::InconsistentDocument(format!(
+                        "session `{}` contains duplicate photo `{photo_id}`",
+                        session.id
+                    )));
+                }
+                if let Some(previous) =
+                    session_membership.insert(photo_id.as_str(), session.id.as_str())
+                {
+                    return Err(crate::Error::InconsistentDocument(format!(
+                        "photo `{photo_id}` belongs to sessions `{previous}` and `{}`",
+                        session.id
+                    )));
+                }
+            }
+        }
+
+        for pair in &self.pairs {
+            if pair.a >= pair.b {
+                return Err(crate::Error::InconsistentDocument(format!(
+                    "pair `{}` does not contain two canonically ordered photo IDs",
+                    pair.id
+                )));
+            }
+            let expected_id = canonical_pair_id(&pair.a, &pair.b);
+            if pair.id != expected_id {
+                return Err(crate::Error::InconsistentDocument(format!(
+                    "pair `{}` has non-canonical ID; expected `{expected_id}`",
+                    pair.id
+                )));
+            }
+            if !photo_ids.contains(pair.a.as_str()) || !photo_ids.contains(pair.b.as_str()) {
+                return Err(crate::Error::InconsistentDocument(format!(
+                    "pair `{}` references an unknown photo",
+                    pair.id
+                )));
+            }
+            if !session_ids.contains(pair.session_id.as_str())
+                || session_membership.get(pair.a.as_str()) != Some(&pair.session_id.as_str())
+                || session_membership.get(pair.b.as_str()) != Some(&pair.session_id.as_str())
+            {
+                return Err(crate::Error::InconsistentDocument(format!(
+                    "pair `{}` does not reference the session containing both photos",
+                    pair.id
+                )));
+            }
+            if let Some(homography) = &pair.homography_a_to_b {
+                if homography.len() != 9 || Mat3::from_row_major(homography).is_none() {
+                    return Err(crate::Error::InconsistentDocument(format!(
+                        "pair `{}` homography is not a finite 3x3 matrix",
+                        pair.id
+                    )));
+                }
+            }
+        }
+
         let mut seen: BTreeMap<&str, u32> =
             self.photos.iter().map(|p| (p.id.as_str(), 0)).collect();
         for group in &self.groups {
@@ -1148,7 +1292,20 @@ impl AnalysisDocument {
                     group.id, group.anchor_photo_id
                 )));
             }
+            if group.photo_ids.first() != Some(&group.anchor_photo_id) {
+                return Err(crate::Error::InconsistentDocument(format!(
+                    "group `{}` anchor must be its first member",
+                    group.id
+                )));
+            }
+            let mut group_members = BTreeSet::new();
             for pid in &group.photo_ids {
+                if !group_members.insert(pid.as_str()) {
+                    return Err(crate::Error::InconsistentDocument(format!(
+                        "group `{}` contains duplicate photo `{pid}`",
+                        group.id
+                    )));
+                }
                 match seen.get_mut(pid.as_str()) {
                     Some(count) => *count += 1,
                     None => {
@@ -1159,7 +1316,22 @@ impl AnalysisDocument {
                     }
                 }
             }
+            let mut aligned_members = BTreeSet::new();
             for alignment in &group.alignments {
+                if !group_members.contains(alignment.photo_id.as_str())
+                    || alignment.photo_id == group.anchor_photo_id
+                {
+                    return Err(crate::Error::InconsistentDocument(format!(
+                        "group `{}` alignment references invalid member `{}`",
+                        group.id, alignment.photo_id
+                    )));
+                }
+                if !aligned_members.insert(alignment.photo_id.as_str()) {
+                    return Err(crate::Error::InconsistentDocument(format!(
+                        "group `{}` contains duplicate alignment for `{}`",
+                        group.id, alignment.photo_id
+                    )));
+                }
                 if alignment.homography.len() != 9 || alignment.inverse_homography.len() != 9 {
                     return Err(crate::Error::InconsistentDocument(format!(
                         "group `{}` alignment for `{}` is not a 3x3 matrix",
@@ -1260,6 +1432,15 @@ mod tests {
 
     fn minimal_document() -> AnalysisDocument {
         let mut doc = AnalysisDocument::default();
+        doc.configurations.push(Configuration {
+            id: "configuration-1".into(),
+            device_key: "device-1".into(),
+            make: None,
+            model: None,
+            mode_label: None,
+            display_name: "Test camera".into(),
+            photo_count: 1,
+        });
         doc.photos.push(Photo {
             id: "photo-aaaa".into(),
             path: "a.jpg".into(),
@@ -1414,6 +1595,64 @@ mod tests {
         doc.groups[0].alignments[0].inverse_homography =
             vec![1.0, 0.0, -0.1, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
         doc.validate().unwrap();
+    }
+
+    #[test]
+    fn duplicate_ids_and_normalized_paths_are_rejected() {
+        let mut document = minimal_document();
+        let mut duplicate = document.photos[0].clone();
+        duplicate.path = "other.jpg".into();
+        document.photos.push(duplicate);
+        assert!(document
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("duplicate photo ID"));
+
+        let mut document = minimal_document();
+        let mut duplicate = document.photos[0].clone();
+        duplicate.id = "photo-bbbb".into();
+        duplicate.path = "cafe\u{301}.jpg".into();
+        document.photos[0].path = "café.jpg".into();
+        document.photos.push(duplicate);
+        let error = document.validate().unwrap_err().to_string();
+        assert!(error.contains("duplicate normalized path"), "{error}");
+    }
+
+    #[test]
+    fn invalid_cross_references_and_group_order_are_rejected() {
+        let mut document = minimal_document();
+        document.photos[0].configuration_id = "missing".into();
+        assert!(document
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("unknown configuration"));
+
+        let mut document = minimal_document();
+        document.photos.push({
+            let mut photo = document.photos[0].clone();
+            photo.id = "photo-bbbb".into();
+            photo.path = "b.jpg".into();
+            photo
+        });
+        document.ungrouped.clear();
+        document.groups.push(Group {
+            id: "group-1".into(),
+            anchor_photo_id: "photo-aaaa".into(),
+            photo_ids: vec!["photo-bbbb".into(), "photo-aaaa".into()],
+            alignments: vec![],
+            flags: vec![],
+            evidence: GroupEvidence {
+                mean_anchor_score: None,
+                min_anchor_score: None,
+                compatible_member_pairs: 0,
+                incompatible_member_pairs: 0,
+                unverified_member_pairs: 1,
+            },
+        });
+        let error = document.validate().unwrap_err().to_string();
+        assert!(error.contains("anchor must be its first member"), "{error}");
     }
 
     #[test]

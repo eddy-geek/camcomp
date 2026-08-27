@@ -21,6 +21,7 @@ serde_json.workspace = true
 schemars.workspace = true
 chrono.workspace = true
 thiserror.workspace = true
+unicode-normalization = "=0.1.24"
 
 # Extraction is sequential for now: the plan calls for bounded parallelism only
 # after profiling, and a 50 MP decode per worker is exactly the allocation that

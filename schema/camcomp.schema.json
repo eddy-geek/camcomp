@@ -236,10 +236,21 @@
           },
           "default": {}
         },
-        "focalTolerance": {
-          "description": "Maximum relative difference of 35 mm equivalent focal length.",
+        "fieldOfViewTolerance": {
+          "description": "Maximum relative difference of *diagonal angle of view*, derived from the\n35 mm equivalent focal lengths (`SPEC.md` §4.2).\n\nNot a focal ratio: angle of view is `2·atan(d / 2f)`, so a constant\nangular tolerance is more permissive at the wide end and stricter at the\nlong end than a constant focal ratio. `0.10` here is within a percent of\nthe 15 % focal rule of `REQUIREMENTS.md` §3 at main-camera focal lengths,\nand it is the only basis that orders the labelled sets correctly\n(`IMPLEM-DROP1.md` §6.11).",
           "type": "number",
           "format": "double"
+        },
+        "fieldOfViewToleranceNativeLens": {
+          "description": "Same tolerance, applied when *both* photos were taken at a native lens\nstep — no digital zoom or sensor crop on either side.\n\nTwo phones' ultrawide cameras differ in framing as a matter of hardware\n(measured: 15 mm against 12 mm equivalent, 10 % of angle of view), yet\n\"both ultrawides\" is exactly the comparison the product exists for. A\ndeliberate zoom step by the photographer is a different intent and stays\nunder the strict tolerance.",
+          "type": "number",
+          "format": "double",
+          "default": 0.2
+        },
+        "focalZoomPolicy": {
+          "description": "Whether `FocalLengthIn35mmFilm` is taken at face value or combined with\n`DigitalZoomRatio` (`IMPLEM-DROP1.md` §6.7).",
+          "$ref": "#/$defs/FocalZoomPolicy",
+          "default": "per-device"
         },
         "loweRatio": {
           "description": "Lowe ratio-test threshold.",
@@ -308,7 +319,7 @@
           "format": "double"
         },
         "sessionGapSeconds": {
-          "description": "Sliding gap that separates two shooting sessions (`SPEC.md` §4.1).",
+          "description": "Sliding gap that separates two shooting sessions (`SPEC.md` §4.1).\n\nSet to [`u32::MAX`] to disable session detection entirely, which puts\nevery photo in one session. That is a calibration instrument, not a\nproduct default: it removes the cheapest prefilter and makes the visual\nhalf decide every pair.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
@@ -317,7 +328,7 @@
       "additionalProperties": false,
       "required": [
         "sessionGapSeconds",
-        "focalTolerance",
+        "fieldOfViewTolerance",
         "compatibilityThreshold",
         "analysisLongestEdge",
         "maxPairsPerSession",
@@ -571,11 +582,32 @@
       ]
     },
     "FocalComparison": {
-      "description": "The focal comparison for one pair.",
+      "description": "The framing comparison for one pair.",
       "type": "object",
       "properties": {
-        "relativeDifference": {
-          "description": "`abs(a - b) / min(a, b)`, when both values are known.",
+        "appliedTolerance": {
+          "description": "The tolerance this comparison was judged against. Two tiers exist, so\nthe verdict is not explainable from the difference alone.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "nativeLensPair": {
+          "description": "`true` when both photos were at a native lens step and the relaxed\ntolerance applied.",
+          "type": "boolean",
+          "default": false
+        },
+        "relativeFocalDifference": {
+          "description": "Relative difference of effective 35 mm equivalent focal length. Recorded\nfor explanation only; it is not what the predicate compares.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "relativeFovDifference": {
+          "description": "Relative difference of diagonal angle of view. **This is the value the\nverdict is based on.**",
           "type": [
             "number",
             "null"
@@ -620,6 +652,11 @@
           "const": "exif35mm"
         },
         {
+          "description": "`FocalLengthIn35mmFilm` multiplied by `DigitalZoomRatio`, because the\ndevice reports the two independently ([`FocalZoomPolicy`]).",
+          "type": "string",
+          "const": "exif35mm-zoom-applied"
+        },
+        {
           "description": "Derived from the physical focal length and a known crop factor.",
           "type": "string",
           "const": "derived-from-crop-factor"
@@ -628,6 +665,26 @@
           "description": "Unknown. Focal comparisons involving this photo are `uncertain`.",
           "type": "string",
           "const": "unknown"
+        }
+      ]
+    },
+    "FocalZoomPolicy": {
+      "description": "How to reconcile `FocalLengthIn35mmFilm` with `DigitalZoomRatio`.\n\nEXIF defines the 35 mm equivalent as a property of the *lens*, so a\nspec-abiding device reports the un-zoomed value and leaves the zoom in its own\ntag. Some devices fold the zoom in anyway, and comparing one convention\nagainst the other reports a 46 % focal difference between two photos that\nmeasurably share a framing (`IMPLEM-DROP1.md` §6.7).",
+      "oneOf": [
+        {
+          "description": "Use `FocalLengthIn35mmFilm` exactly as reported.",
+          "type": "string",
+          "const": "trust-exif"
+        },
+        {
+          "description": "Multiply by `DigitalZoomRatio` whenever it exceeds 1, for every device.",
+          "type": "string",
+          "const": "apply-digital-zoom"
+        },
+        {
+          "description": "Apply the zoom except for devices measured to fold it in already. The\nper-device decision is recorded on each photo, so a document always says\nwhich convention produced its focal lengths.",
+          "type": "string",
+          "const": "per-device"
         }
       ]
     },
@@ -1443,6 +1500,14 @@
           ],
           "format": "double"
         },
+        "effectiveFocalLength35mm": {
+          "description": "The equivalent focal length actually compared, after the\n[`FocalZoomPolicy`]. Equal to [`Self::focal_length_35mm`] unless a zoom\nwas applied.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
         "exifOrientation": {
           "description": "EXIF orientation as found. `1` when absent or invalid.",
           "type": "integer",
@@ -1451,7 +1516,7 @@
           "minimum": 0
         },
         "focalLength35mm": {
-          "description": "35 mm equivalent focal length, in millimetres.",
+          "description": "35 mm equivalent focal length exactly as reported, in millimetres.",
           "type": [
             "number",
             "null"
@@ -1477,8 +1542,15 @@
             "null"
           ]
         },
+        "modeFlags": {
+          "description": "Capture flags that are *not* part of the configuration identity, for\nexample `portrait` or `burst`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "modeLabel": {
-          "description": "Normalized mode label, for example `photo`, `master` or `hd`.",
+          "description": "Normalized mode label, for example `auto`, `master` or `hi-res`.",
           "type": [
             "string",
             "null"
@@ -1497,6 +1569,18 @@
             "string",
             "null"
           ]
+        },
+        "modeTagUnknownBits": {
+          "description": "Bits of the mode tag that this version does not interpret, as hex.\n\nPresent means \"this device said something we have not verified\". The bits\nfork the configuration rather than being folded into a known mode,\nbecause silently merging two shooting modes corrupts Drop 4 scoring\nwhile an odd configuration name is visible and correctable.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "nativeLens": {
+          "description": "`true` when this photo used a lens at its native field of view — no\ndigital zoom and no sensor crop. Photos that are both native compare\nunder [`AnalysisParameters::field_of_view_tolerance_native_lens`].",
+          "type": "boolean",
+          "default": false
         },
         "orientationAppliedByDecoder": {
           "description": "`true` when the decoder already delivered oriented pixels, so the EXIF\norientation must *not* be applied again (HEIF container transforms).",
