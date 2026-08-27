@@ -30,7 +30,7 @@ Deliver one tested static frontend that runs as a desktop-browser PWA and inside
 - uses the best available folder and HEIC behavior in Safari, Chromium, Firefox, and Tauri;
 - remains local and never uploads photos or metadata.
 
-The implementation shall consume the completed Drop 1 core and schema rather than reproduce analysis behavior in TypeScript. Where the initial `SPEC.md` prose or illustrative JSON differs from the completed implementation, the generated schema, Rust public contracts, `IMPLEM-DROP1.md`, and observed `docs/GUIDE.md` behavior are authoritative for integration. This plan does not reopen or silently translate Drop 1 algorithm defaults.
+The implementation shall consume the completed Drop 1 core and schema rather than reproduce analysis behavior in TypeScript. Where the initial `SPEC.md` prose or illustrative JSON differs from the completed implementation, the generated schema, Rust public contracts, `IMPLEM-DROP1.md`, and observed `docs/GUIDE.md` behavior are authoritative for integration. This plan does not reopen or silently translate Drop 1 algorithm defaults. Do make any modification needed to ease integration.
 
 ## 2. Scope boundaries
 

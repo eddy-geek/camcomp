@@ -3,10 +3,18 @@
 camcomp is dual-licensed under your choice of the MIT license or the Apache
 License, Version 2.0.
 
-This matches the `license` field in `Cargo.toml` (`MIT OR Apache-2.0`) and
-every dependency selected in `artifacts/ADR-DROP1.md` — the HEIC decoder in
-particular is `heif-oxide`/`rust_h265` (MIT/Apache-2.0), not the AGPL-licensed
-`heic` crate, per the benchmark in `artifacts/IMPLEM-DROP1.md` §1.3.
+This matches the `license` field in `Cargo.toml` (`MIT OR Apache-2.0`). The
+native HEIC decoder is `heif-oxide`/`rust_h265` (MIT/Apache-2.0), not the
+AGPL-licensed `heic` crate, per the benchmark in `artifacts/IMPLEM-DROP1.md`
+§1.3.
+
+The optional browser HEIC worker includes the unmodified `heic-to 1.5.2`
+package and its embedded libheif build under LGPL-3.0. It is emitted as a
+separate worker asset and used only after explicit high-memory confirmation.
+Source, copyright, replacement information, and links to the complete LGPL and
+incorporated GPL terms are distributed in
+`apps/web/static/third-party-notices.txt`. The LGPL applies to that third-party
+component, not to camcomp's MIT/Apache-2.0 code.
 
 ---
 

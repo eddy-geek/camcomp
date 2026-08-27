@@ -4,7 +4,8 @@ You have a folder of photos of the same things, taken with two phones, or with o
 phone in two modes. camcomp works out which photos go together so you can compare
 them side by side.
 
-This guide covers Drop 1: the grouping. The viewer comes later.
+This guide covers grouping, browser and desktop import, cached-analysis reload, and
+the comparison viewer.
 
 Nothing leaves your machine. No photo is ever modified, moved, or renamed. The only
 file camcomp writes into your photo folder is `camcomp.json`.
@@ -358,15 +359,93 @@ Common options:
 Every option you pass is recorded in `camcomp.json`, so a result always says which
 settings produced it.
 
-## 11. The desktop application
+## 11. Browser and desktop application
 
 ```sh
-cd apps/desktop && npx tauri dev
+mise run web:dev
+mise run tauri:dev
 ```
 
-Open a folder or drop photos in; drop an existing `camcomp.json` to reload one. The
-analysis runs in the background with a progress bar and a working Cancel. Cancelling
-never loses an already-saved analysis.
+Both commands use the same static Svelte frontend. The browser command opens the PWA
+at `http://127.0.0.1:5173`; the Tauri command adds native analysis and persistence.
 
-The desktop app currently shows groups and confidences. The side-by-side viewer,
-blind mode and scoring are Drops 3 and 4.
+### Opening an existing analysis
+
+Use **Open folder** when the folder contains `camcomp.json`, or use **Select files**
+and choose one `camcomp.json`. A valid cache is validated and shown immediately. This
+load does not hash, analyze, or rewrite any source photo. A JSON-only browser selection
+keeps the analysis open and offers **Choose photo source** so you can grant the folder
+or files referenced by its relative paths.
+
+Chromium uses a directory handle when available and can offer the recent folder again;
+permission must still be granted when the browser asks. Safari and Firefox use recursive
+folder input and require reselection after restart. Dragging one folder, one JSON file,
+photos, or one JSON file with its photos follows the same rules. More than one JSON file
+is rejected as ambiguous.
+
+### Creating or refreshing an analysis
+
+New analysis is available only in Tauri. Before it starts, camcomp shows the selected
+source and safe `camcomp.json` destination. It rejects a filesystem or volume root as a
+write target. Progress stages, warnings, cancellation, completion, and analyzed/reused
+pair counts remain visible. **Refresh analysis** uses Drop 1's incremental cache reuse.
+Cancelling or failing never overwrites a previous valid analysis, and malformed or
+incompatible JSON is never replaced automatically.
+
+A standalone browser keeps a photos-only selection intact but explains that the desktop
+app is required; it never claims to have analyzed or saved those photos.
+
+## 12. Comparison viewer
+
+Choose a group in the left navigation. Every member remains present even when its source
+or alignment is unavailable. Two or three photos use columns in a landscape viewport and
+rows in a portrait viewport; four use a 2 × 2 grid; larger groups use a deterministic
+scrollable grid.
+
+Each photo displays:
+
+- effective 35 mm equivalent focal length, including a zoom-corrected label when Drop 1
+  applied that policy, then reported equivalent or physical focal length as fallbacks;
+- oriented resolution;
+- camera make and model;
+- source substitution and alignment status.
+
+Use the mouse, trackpad, or the **Zoom in**, **Zoom out**, and **Fit all** controls. In
+**Normalized** mode, every viewer shares the same normalized center and visible span. In
+**Experimental global aligned** mode, centers map from the active photo to the group
+anchor and then through each target's persisted inverse homography. It remains marked
+experimental until the predefined real-landmark gate is recorded. A member with missing, invalid, or
+out-of-bounds global mapping falls back visibly to normalized coordinates. This mode does
+not perform local correspondence interpolation or per-pixel warping.
+
+Groups containing exactly two photos offer **Comparison slider**. The divider is a
+semantic range input with arrow-key support. Switching between grid and slider keeps the
+photo order, navigation mode, and canonical center/span.
+
+## 13. Formats, offline use, and privacy
+
+JPEG and PNG display directly. HEIC handling is capability-based:
+
+1. use the exact HEIC when the runtime successfully decodes it natively;
+2. otherwise try a same-directory, same-stem `.jpg`, `.jpeg`, then `.png` whose decoded
+   dimensions match the analysis;
+3. when a CSP-compatible worker is available, show the measured high-memory warning and
+   decode only after **Decode HEIC anyway** is selected;
+4. otherwise explain that Tauri is required.
+
+Sidecar use is always labelled because compression, color, crop, or content can differ.
+The worker uses lossless PNG output, runs one decode at a time, cancels when the album
+closes, and rejects images above 60 MP. A representative 50 MP comparison measured about
+2,120 MiB peak Chromium RAM, 1,828 MiB above baseline; other applications may become less
+responsive. Tauri remains the lower-memory fallback and decodes HEIC off the UI thread
+into a digest-keyed lossless PNG in application cache. Neither path creates a display
+copy in the source folder. The browser worker's LGPL source and replacement information
+is available from **Third-party notices** in the application footer.
+
+The installed PWA caches fingerprinted application-shell assets only. Selected photos,
+EXIF, `camcomp.json`, object URLs, and decoded images are not placed in Cache Storage and
+are never sent over the network. Offline startup does not imply that a previously selected
+folder is still authorized.
+
+RAW files, browser-side grouping analysis, local correspondence-refined navigation,
+preference scoring, packaging, signing, and auto-update remain outside this delivery.

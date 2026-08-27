@@ -126,3 +126,33 @@ Q: Do you accept the ADR recommendation of Svelte + TypeScript + Vite for the sh
 Accept Svelte
 Q: Do you accept the gated OpenSeadragon/tile-pyramid strategy for approximately 50 MP photos?
 do "7.3 OpenSeadragon with simple image sources" i.e. us OpenSeaDragon so we can easily switch to a pyramid, but we'll only do that if we run into issues with the simple one.
+
+<quote>
+
+The heic-to/csp spike used a disposable outer worker around its decoder worker,
+ImageBitmap, lossless OffscreenCanvas PNG output, a 256 MiB compressed-input guard,
+a 60 MP decoded-pixel guard, and one-at-a-time scheduling. Results on the local macOS
+arm64 host with Playwright Chromium 149:
+
+- all 18 Drop 1 HEIC fixtures decoded at the Rust-reported oriented dimensions;
+- coverage included 4096×3072, 5888×4416, 8192×6144, 3072×4096, and 6144×8192;
+- end-to-end decode/display times were 2.7–7.6 seconds per image;
+- the production CSP stayed free of unsafe-eval;
+- terminating the album during an in-flight 50 MP decode cancelled cleanly;
+- one 8192×6144 HEIC plus one 4080×3072 JPEG viewer raised total Chromium RSS from
+  292 MiB to a 2,120 MiB peak: **+1,828 MiB** for one decoded HEIC comparison.
+
+Correctness, orientation dimensions, CSP, and cancellation passed, but the 50 MP memory
+result is unacceptable for a product intended to show two to four photos, and color
+profile fidelity was not independently reviewed. Gate A therefore rejected heic-to;
+the spike dependency and runtime code were removed, so no LGPL component or obligation
+ships. The accepted production path remains sidecar then Tauri, as required when no
+</quote>
+I guess PNG will also raise RAM a bit... I thing 2 GB is still (barely) acceptable, until we optimize later.
+do include it, with a user warning of high ram
+
+
+start at @README.md  . we are at @IMPLEM-DROP2.md .
+images are usually HDR, either built in heic or with JPG Ultra HDR gain map which is supportedby major browsers:  Google Chrome, Microsoft Edge, Brave, Opera, and Apple Safari fully support JPEG Ultra HDR (gain map) images (while Mozilla Firefox falls back to standard SDR)
+
+audit whether all the rendering path (eg conversion + openseamap rendering) will support it properly ie forward the gain map and use compatible browser rendering primitives. when it does not (eg PNG I guess ??) investigate alternatives with their pros/cons. highlight where it's not possible at all (we should warn the user when falling back to SDR eg on Firefox). Do not code but make a report + ADR in ADR-DROP3-HDR.md

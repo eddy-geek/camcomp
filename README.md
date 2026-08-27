@@ -4,9 +4,9 @@ Compare photos taken by several cameras, phones, or several modes of the same
 phone. camcomp finds which photos show the same scene within one shooting
 session, and keeps the analysis in a cacheable `camcomp.json` beside the photos.
 
-**Status: Drop 1** — the grouping and alignment engine, a CLI, and a Tauri
-integration spike. The side-by-side viewer, blind mode and scoring are Drops 3
-and 4.
+**Status: Drops 2 and 3.1** — the grouping and alignment engine, CLI, shared
+browser/Tauri import interface, and synchronized comparison viewer are implemented.
+Blind mode, configurable review tags, and preference scoring remain deferred.
 
 Nothing leaves your machine, and no source photo is ever modified. The only file
 camcomp writes into a photo folder is `camcomp.json`.
@@ -34,8 +34,10 @@ desktop application ships as a single binary with no external runtime.
 ## Getting started
 
 ```sh
-mise install                 # pinned Rust and Node
-cargo build --release
+mise install
+npm ci --prefix apps/web
+mise run build
+mise run web:build
 ```
 
 Analyze a folder:
@@ -78,23 +80,31 @@ camcomp override photos/ --merge group-aaa,group-bbb
 camcomp override photos/ --remove group-61a15592f217=photo-9c1b0e4d2a71
 ```
 
-## Desktop application
+## Browser and desktop applications
 
 ```sh
-cd apps/desktop && npx tauri dev      # or: npx tauri build
+mise run web:dev       # browser PWA at http://127.0.0.1:5173
+mise run tauri:dev     # the same frontend inside Tauri
 ```
 
-The Tauri shell calls the Rust engine directly — no sidecar process, no Python,
-no OpenCV. It exists to prove the architecture: analysis runs off the UI thread,
-progress and cancellation work, errors arrive structured, and `camcomp.json` is
-written atomically.
+Both modes load a selected local `camcomp.json` without uploading or automatically
+rescanning photos. Browser mode is read-only: it uses a Chromium directory handle
+when available and recursive file input elsewhere. New analysis, incremental refresh,
+progress, cancellation, and atomic persistence are available through the Tauri app.
+
+The viewer lays out every group member, displays focal length, oriented resolution,
+and camera model, and synchronizes OpenSeadragon pan/zoom. Normalized navigation is
+always available; experimental aligned navigation maps through Drop 1's global
+homographies and shows deterministic per-photo fallback. Two-photo groups can use a keyboard-accessible
+comparison slider.
 
 ## Repository layout
 
 ```text
 crates/camcomp-core/     the analysis engine; usable as a library, no UI dependency
 crates/camcomp-cli/      the `camcomp` binary
-apps/desktop/            Tauri 2 shell
+apps/web/                shared Svelte/TypeScript PWA and viewer
+apps/desktop/            Tauri 2 native adapter
 schema/                  generated JSON Schema for camcomp.json
 scripts/                 fixture and calibration harnesses
 artifacts/               requirements, specification, ADR, plan, implementation notes
@@ -104,8 +114,11 @@ test/tstgrp[1-8]/        labelled reference photo sets
 ## Verification
 
 ```sh
-mise run check            # fmt, clippy (warnings denied), tests, release build, schema freshness
+mise run check            # Rust + frontend format, lint, tests, E2E, builds, contracts
 mise run test-fixtures    # the labelled reference sets in ./test
+mise run web:test         # frontend unit and component tests
+mise run web:e2e          # Chromium, WebKit, and Firefox
+mise run tauri:check      # native application compile check
 mise run calibrate        # per-pair metric distribution against the labels
 ```
 
@@ -133,10 +146,13 @@ Read `artifacts/IMPLEM-DROP1.md` before trusting a threshold. The short version:
   not fold its digital zoom into `FocalLengthIn35mmFormat` while the Oppo does.
   camcomp records both values and corrects it per device rather than silently
   reconciling both conventions the same way.
-- RAW is not supported. Browser-only operation is a separate, ungated target.
-- HEIC decoding uses `heif-oxide` (MIT/Apache-2.0), benchmarked against the
-  AGPL-licensed `heic` crate and found faster in every configuration tried
-  (`artifacts/IMPLEM-DROP1.md` §1.2) — so the licence question never arises.
+- RAW is not supported. Browser mode cannot create or refresh an analysis.
+- Safari uses HEIC when an actual native decode succeeds. Other browsers prefer a
+  dimension-matched same-stem JPEG/PNG sidecar, then offer an explicit high-memory
+  lossless worker decode. A 50 MP worker decode measured about 2.1 GiB peak RAM, so
+  it never starts without confirmation; Tauri remains the lower-risk fallback.
+- Tauri HEIC display uses `heif-oxide` and writes a digest-keyed lossless PNG only
+  to application cache storage. The source folder is never modified.
 
 ## Documents
 
@@ -149,9 +165,13 @@ for working on it.
 | [`artifacts/REQUIREMENTS.md`](artifacts/REQUIREMENTS.md) | what the product must do |
 | [`artifacts/SPEC.md`](artifacts/SPEC.md) | how Drop 1 does it |
 | [`artifacts/ADR-DROP1.md`](artifacts/ADR-DROP1.md) | why this stack |
-| [`artifacts/PLAN-DROP1.md`](artifacts/PLAN-DROP1.md) | the order of work and its gates |
-| [`artifacts/IMPLEM-DROP1.md`](artifacts/IMPLEM-DROP1.md) | what was built, measured, and found |
+| [`artifacts/PLAN-DROP1.md`](artifacts/PLAN-DROP1.md) | Drop 1 implementation plan and gates |
+| [`artifacts/IMPLEM-DROP1.md`](artifacts/IMPLEM-DROP1.md) | Drop 1 implementation and measurements |
+| [`artifacts/PLAN-DROP2.md`](artifacts/PLAN-DROP2.md) | Drops 2 and 3.1 implementation plan and gates |
+| [`artifacts/IMPLEM-DROP2.md`](artifacts/IMPLEM-DROP2.md) | delivered UI, integration feedback, evidence, and pending manual gates |
 
 ## Licence
 
-MIT or Apache-2.0, at your option. See [`LICENSE.md`](LICENSE.md).
+camcomp is MIT or Apache-2.0, at your option. The optional browser HEIC worker includes
+`heic-to` under LGPL-3.0; source and replacement notices ship with the frontend. See
+[`LICENSE.md`](LICENSE.md).
