@@ -10,8 +10,13 @@
 camcomp.json
 .camcomp.json.tmp
 
-# Node, for the desktop shell's tooling
+# Node and generated frontend output
 node_modules/
+/apps/web/dist/
+/apps/web/playwright-report/
+/apps/web/test-results/
+/apps/web/.env*
+/apps/web/tests/private-fixtures.json
 
 # Tauri build output
 /apps/desktop/src-tauri/gen

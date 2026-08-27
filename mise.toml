@@ -16,10 +16,12 @@ run = "cargo fmt --all -- --check"
 
 [tasks.lint]
 description = "Clippy over everything, warnings denied"
+depends = ["web:build"]
 run = "cargo clippy --workspace --all-targets --all-features -- -D warnings"
 
 [tasks.test]
 description = "Unit, integration and doc tests. The reference-set suite is real-photo SIFT work, so it runs in release even here; everything else stays debug so assertions keep firing."
+depends = ["web:build"]
 run = [
     "cargo test --workspace --all-features --lib --bins",
     "cargo test --workspace --all-features --doc",
@@ -28,6 +30,7 @@ run = [
 
 [tasks."test:quick"]
 description = "Inner-loop unit/doc tests only, no reference-set photos"
+depends = ["web:build"]
 run = [
     "cargo test --workspace --all-features --lib --bins",
     "cargo test --workspace --all-features --doc",
@@ -35,6 +38,7 @@ run = [
 
 [tasks.build]
 description = "Release build"
+depends = ["web:build"]
 run = "cargo build --workspace --release"
 
 [tasks.schema]
@@ -70,9 +74,69 @@ description = "Per-pair component distribution against the gN- labels"
 depends = ["build"]
 run = "./scripts/calibration-report.sh"
 
+[tasks."web:dev"]
+description = "Start the shared browser and Tauri frontend"
+run = "npm --prefix apps/web run dev"
+
+[tasks."web:fmt"]
+description = "Format the shared frontend"
+run = "npm --prefix apps/web run format"
+
+[tasks."web:fmt:check"]
+description = "Fail if frontend formatting is not clean"
+run = "npm --prefix apps/web run format:check"
+
+[tasks."web:lint"]
+description = "Lint the shared frontend with warnings denied"
+run = "npm --prefix apps/web run lint"
+
+[tasks."web:typecheck"]
+description = "Run strict TypeScript and Svelte diagnostics"
+run = "npm --prefix apps/web run typecheck"
+
+[tasks."web:test"]
+description = "Run frontend unit and component tests"
+run = "npm --prefix apps/web test"
+
+[tasks."web:e2e"]
+description = "Run Chromium, WebKit, and Firefox browser tests"
+depends = ["web:build"]
+run = "npm --prefix apps/web run test:e2e"
+
+[tasks."web:build"]
+description = "Build the static PWA and shared Tauri frontend"
+run = "npm --prefix apps/web run build"
+
+[tasks."web:contract:check"]
+description = "Fail if the schema-derived TypeScript contract is stale"
+run = "npm --prefix apps/web run contract:check"
+
+[tasks."tauri:dev"]
+description = "Run the shared frontend inside Tauri"
+run = "npm --prefix apps/web run tauri:dev"
+
+[tasks."tauri:check"]
+description = "Compile-check the Tauri desktop application"
+depends = ["web:build"]
+run = "cargo check -p camcomp-desktop --all-features"
+
 [tasks.check]
 description = "Everything CI runs"
-depends = ["fmt:check", "lint", "test", "build", "schema:check"]
+depends = [
+    "fmt:check",
+    "lint",
+    "test",
+    "build",
+    "schema:check",
+    "web:fmt:check",
+    "web:lint",
+    "web:typecheck",
+    "web:test",
+    "web:e2e",
+    "web:build",
+    "web:contract:check",
+    "tauri:check",
+]
 
 [tasks."check-wasm"]
 description = "Browser feasibility target (ADR-DROP1 §9.3); the crate exists only once the spike is enabled"

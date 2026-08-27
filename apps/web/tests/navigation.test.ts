@@ -1,0 +1,122 @@
+import { describe, expect, it, vi } from "vitest";
+import type { Group } from "../src/contracts/camcomp.generated";
+import {
+  applyHomography,
+  GlobalHomographyPointMapper,
+  NavigationController,
+} from "../src/viewer/navigation";
+import type { ViewerAdapter, ViewerInteraction } from "../src/viewer/types";
+
+const identity = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+const group: Group = {
+  id: "g",
+  anchorPhotoId: "a",
+  photoIds: ["a", "b", "c", "missing"],
+  evidence: {
+    compatibleMemberPairs: 3,
+    incompatibleMemberPairs: 0,
+    unverifiedMemberPairs: 1,
+  },
+  alignments: [
+    {
+      photoId: "b",
+      coordinateSystem: "normalized-oriented",
+      direction: "photo-to-anchor",
+      homography: [1, 0, 0.1, 0, 1, 0, 0, 0, 1],
+      inverseHomography: [1, 0, -0.1, 0, 1, 0, 0, 0, 1],
+      confidence: 0.9,
+      provenance: "direct-pair",
+    },
+    {
+      photoId: "c",
+      coordinateSystem: "normalized-oriented",
+      direction: "photo-to-anchor",
+      homography: [1, 0, -0.2, 0, 1, 0, 0, 0, 1],
+      inverseHomography: [1, 0, 0.2, 0, 1, 0, 0, 0, 1],
+      confidence: 0.8,
+      provenance: "composed",
+    },
+  ],
+};
+
+describe("homography navigation", () => {
+  it("applies row-major projective matrices", () => {
+    expect(applyHomography(identity, [0.3, 0.7])).toEqual([0.3, 0.7]);
+    expect(applyHomography([1, 0, 0.2, 0, 1, -0.1, 0, 0, 1], [0.3, 0.7])).toEqual([0.5, 0.6]);
+    expect(applyHomography([1, 0, 0, 0, 1, 0, 0, 0, 0], [0.3, 0.7])).toBeNull();
+  });
+
+  it("maps non-anchor members through anchor space", () => {
+    const mapper = new GlobalHomographyPointMapper(group);
+    const mapped = mapper.map("b", "c", [0.2, 0.4]);
+    expect(mapped.point[0]).toBeCloseTo(0.5);
+    expect(mapped.point[1]).toBeCloseTo(0.4);
+    expect(mapped.provenance).toBe("composed");
+  });
+
+  it("falls back per target when an alignment is unavailable", () => {
+    const mapper = new GlobalHomographyPointMapper(group);
+    expect(mapper.map("a", "missing", [0.4, 0.6])).toMatchObject({
+      point: [0.4, 0.6],
+      fallback: true,
+      provenance: "normalized",
+    });
+  });
+});
+
+class FakeAdapter implements ViewerAdapter {
+  readonly applied = vi.fn();
+  #handler?: (interaction: ViewerInteraction) => void;
+  open = vi.fn(async () => undefined);
+  viewport = vi.fn(() => null);
+  applyViewport = this.applied;
+  fit = vi.fn();
+  zoomBy = vi.fn();
+  onInteraction(handler: (interaction: ViewerInteraction) => void): () => void {
+    this.#handler = handler;
+    return () => {
+      this.#handler = undefined;
+    };
+  }
+  destroy = vi.fn();
+  interact(interaction: ViewerInteraction): void {
+    this.#handler?.(interaction);
+  }
+}
+
+describe("navigation controller", () => {
+  it("coalesces one leader interaction and does not write back to the leader", async () => {
+    const controller = new NavigationController(group);
+    const leader = new FakeAdapter();
+    const peer = new FakeAdapter();
+    controller.add("a", leader);
+    controller.add("b", peer);
+    leader.interact({ center: [0.3, 0.4], span: [0.5, 0.6] });
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(leader.applied).not.toHaveBeenCalled();
+    expect(peer.applied).toHaveBeenCalledTimes(1);
+    expect(peer.applied).toHaveBeenCalledWith([0.3, 0.4], [0.5, 0.6]);
+    controller.destroy();
+  });
+
+  it("restores canonical navigation when viewers remount and fits the leader", async () => {
+    const controller = new NavigationController(group);
+    const leader = new FakeAdapter();
+    const peer = new FakeAdapter();
+    controller.add("a", leader);
+    controller.add("b", peer);
+    leader.interact({ center: [0.25, 0.75], span: [0.4, 0.6] });
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    controller.remove("b");
+    const remountedPeer = new FakeAdapter();
+    controller.add("b", remountedPeer);
+    expect(remountedPeer.applied).toHaveBeenCalledWith([0.25, 0.75], [0.4, 0.6]);
+
+    controller.fit();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(leader.applied).toHaveBeenCalledWith([0.5, 0.5], [1, 1]);
+    expect(remountedPeer.applied).toHaveBeenLastCalledWith([0.5, 0.5], [1, 1]);
+    controller.destroy();
+  });
+});

@@ -1,0 +1,11 @@
+camcomp web third-party notices
+
+heic-to 1.5.2
+Copyright Hopper Gee and heic-to contributors
+License: GNU Lesser General Public License, version 3.0 (LGPL-3.0)
+Source: https://github.com/hoppergee/heic-to
+Package source: https://www.npmjs.com/package/heic-to/v/1.5.2
+License terms: https://www.gnu.org/licenses/lgpl-3.0.html
+GNU GPL v3 terms incorporated by the LGPL: https://www.gnu.org/licenses/gpl-3.0.html
+
+camcomp uses the unmodified heic-to package through its documented CSP entry point and builds it as a separate browser worker asset. The package embeds libheif 1.22.2. The application source, package lock, build scripts, and worker boundary needed to rebuild with a modified interface-compatible copy are distributed with camcomp. No warranty is provided for this third-party component.

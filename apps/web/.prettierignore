@@ -1,0 +1,6 @@
+dist
+node_modules
+playwright-report
+test-results
+src/contracts/camcomp.generated.ts
+src/contracts/camcomp.validator.generated.ts
