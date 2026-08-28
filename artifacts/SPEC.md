@@ -24,7 +24,7 @@ Drop 1 does not perform semantic object recognition, modify source photos, or gu
 - **Candidate pair**: two photos in one session that pass metadata prefilters.
 - **Compatible pair**: a candidate pair that passes geometric hard gates and has a composite compatibility score of at least `0.80`.
 - **Incompatible pair**: a candidate pair with sufficient evidence to conclude the photos do not show the same scene.
-- **Uncertain pair**: a candidate pair whose evidence is too weak to decide, for example because one image is low-texture or was never analyzed due to the pair budget. Uncertain is a first-class outcome; it is never coerced to compatible or incompatible.
+- **Uncertain pair**: a candidate pair whose evidence is too weak to decide, for example because one image is low-texture or RANSAC found no consensus. Uncertain is a first-class outcome; it is never coerced to compatible or incompatible.
 - **Anchor**: the group photo to whose coordinate system the other group photos are registered.
 - **Normalized coordinate**: an oriented-image coordinate represented in `[0, 1] × [0, 1]`, independent of image resolution.
 - **Analysis pixel**: a pixel of the analysis image. Distances expressed in analysis pixels are not comparable between photos of different analysis dimensions and are never persisted without their unit.
@@ -73,11 +73,11 @@ The default analysis image shall preserve aspect ratio and have a longest edge o
 
 Photos shall be ordered by corrected capture time. A new session begins whenever the gap from the previous photo exceeds 30 seconds. This is a sliding-gap rule; a session may therefore last longer than 30 seconds in total.
 
-The sliding-gap rule has no upper bound: continuous shooting keeps extending one session indefinitely, and a session of `n` photos yields `n(n-1)/2` candidate pairs. Sessions are consequently a *coarse* partition, not a pair budget. Section 4.3 bounds the work.
+The sliding-gap rule has no upper bound: continuous shooting keeps extending one session indefinitely, and a session of `n` photos yields `n(n-1)/2` candidate pairs. Sessions are consequently a *coarse* partition. Section 4.3 discusses cheap prefilters that keep the visual cost of a large session proportional to its useful work rather than capping it.
 
 Many device clocks have one-second resolution and photos from different devices frequently share a timestamp. Session assignment and all downstream ordering shall use a documented deterministic tie-break (corrected timestamp, then configuration ID, then analysis ID) so results do not depend on filesystem iteration order.
 
-Photos need not be consecutive to belong to one comparison group. All plausible pairs within a session may be evaluated after metadata filtering and within the pair budget.
+Photos need not be consecutive to belong to one comparison group. All plausible pairs within a session may be evaluated after metadata filtering.
 
 ### 4.2 Focal-length compatibility
 
@@ -93,21 +93,18 @@ Anchor selection happens during group construction (Section 6), after pairwise a
 
 Physical focal lengths from different camera models shall not be directly compared as though they represented the same field of view. If equivalent focal length is missing, a known sensor/crop conversion may be used. Otherwise focal compatibility shall be marked uncertain rather than inferred from incompatible metadata. An uncertain focal comparison shall not exclude a pair from visual analysis; it shall only be recorded, because the visual evidence is the stronger signal.
 
-### 4.3 Pair budget and cheap prefilters
+### 4.3 Cheap prefilters
 
 Pairwise SIFT matching is the dominant cost of Drop 1. Brute-force KNN between two photos with a few thousand descriptors each is on the order of `10^7` 128-dimensional distance evaluations, so cost grows quadratically with session size.
 
-Before full pairwise analysis, candidate pairs could be reduced by cheap, order-independent filters:
+Before full pairwise analysis, candidate pairs are reduced by cheap, order-independent filters:
 
-1. session and focal prefilters (Sections 4.1 and 4.2);
-2. a global-appearance prescreen on the analysis image — for example a small-image color/gradient histogram or a downscaled perceptual descriptor — used only to *reject* obviously unrelated pairs with a deliberately permissive threshold, never to accept a pair;
-3. a per-session cap on evaluated pairs, spending the budget in increasing capture-time distance first, since near-simultaneous photos are the intended comparison case.
+1. session and focal prefilters (Sections 4.1 and 4.2), which decide most pairs in a large multi-device session from metadata alone, at zero pixel cost;
+2. optionally, a global-appearance prescreen on the analysis image — for example a small-image color/gradient histogram or a downscaled perceptual descriptor — used only to *reject* obviously unrelated pairs with a deliberately permissive threshold, never to accept a pair.
 
-Pairs skipped because of the budget shall be recorded as `uncertain` with the reason `budget`, shall be visible to the user, and shall be analyzable on demand. Budget values and the prescreen threshold are analysis parameters and are persisted with the results.
+Every candidate pair the prefilters do not decide is visually analyzed; there is no cap on the number of pairs analyzed per session. An earlier revision capped evaluated pairs per session and reported the remainder as `uncertain` with reason `budget`. That cap was removed: it could leave a run silently partially analyzed, which is worse UX than a longer run that finishes completely. If SIFT cost on very large sessions becomes a measured problem, the prescreen in item 2 is the intended lever, not a work cap.
 
-The prescreen must be validated against the calibration set for false rejections before it is enabled by default; a prescreen that discards true matches is worse than a slow analysis.
-
-This is to be considered only if sift speed becomes problematic.
+A global-appearance prescreen must be validated against the calibration set for false rejections before it is enabled by default; a prescreen that discards true matches is worse than a slow analysis.
 
 ## 5. Pairwise visual analysis
 
@@ -266,7 +263,7 @@ The file shall contain:
 - source root and photo fingerprints;
 - extracted metadata and configurations;
 - session assignments;
-- pairwise results and diagnostics, including pairs skipped by the budget;
+- pairwise results and diagnostics for every candidate pair;
 - automatic groups;
 - ungrouped photos with their reason;
 - manual overrides;
@@ -286,10 +283,9 @@ On reload, unchanged photo fingerprints may reuse cached metadata, features, pai
     "version": "1.0.0",
     "parameters": {
       "sessionGapSeconds": 30,
-      "focalTolerance": 0.15,
+      "fieldOfViewTolerance": 0.15,
       "compatibilityThreshold": 0.8,
-      "analysisLongestEdge": 1200,
-      "maxPairsPerSession": 400
+      "analysisLongestEdge": 1200
     },
     "weights": {
       "geometricOverlap": 0.35,
@@ -401,6 +397,6 @@ This should be complemented by synthetics tests where appropriate.
 - Reprojection and transform-plausibility limits after dataset calibration.
 - Whether per-device clock offsets are entered manually or inferred from high-confidence visual matches.
 - Whether large feature caches are embedded, stored beside `camcomp.json`, or always regenerated.
-- Default pair budget per session, once per-pair cost is measured.
+- Whether a global-appearance prescreen (Section 4.3, item 2) is worth enabling once per-pair cost on very large sessions is measured.
 - Whether the composite score survives calibration at all, or is replaced by a small decision tree over the gates and components, which would be easier to explain to the user and easier to defend than opaque weights.
 - Handling of timestamps without timezone information when devices are in different timezones, which is a plausible failure mode for a phone plus a camera.

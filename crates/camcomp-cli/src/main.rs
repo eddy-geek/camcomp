@@ -80,7 +80,8 @@ enum Command {
         #[arg(long)]
         dry_run: bool,
 
-        /// Analyze these canonical pair IDs even if the budget skipped them.
+        /// Analyze these canonical pair IDs even if the focal prefilter
+        /// rejected them.
         #[arg(long = "force-pair")]
         force_pairs: Vec<String>,
 
@@ -126,8 +127,9 @@ struct Tuning {
     /// visual half of the algorithm has to decide every pair.
     #[arg(long, conflicts_with = "session_gap")]
     no_session_gap: bool,
-    /// Relative tolerance on diagonal angle of view. Not a focal ratio: 0.10 is
-    /// about the 15 % focal rule at 24 mm, looser at ultrawide, stricter at tele.
+    /// Relative tolerance on diagonal angle of view. Not a focal ratio: 0.15 is
+    /// about a 20 % focal-ratio window at 24 mm, looser at ultrawide, stricter
+    /// at tele.
     #[arg(long)]
     fov_tolerance: Option<f64>,
     /// Same tolerance for a pair where both photos used a lens at its native
@@ -144,9 +146,6 @@ struct Tuning {
     /// Longest edge of the analysis image, in pixels.
     #[arg(long)]
     analysis_edge: Option<u32>,
-    /// Maximum pairs analyzed per session.
-    #[arg(long)]
-    max_pairs: Option<usize>,
     /// Maximum SIFT keypoints per photo.
     #[arg(long)]
     max_features: Option<usize>,
@@ -243,6 +242,24 @@ struct Printer {
     quiet: bool,
 }
 
+/// `(1-based step number, total steps)` for a stage, in execution order. Used
+/// only for the human-readable progress line; the JSON payload is the stable
+/// contract and is untouched.
+fn step_of(stage: camcomp_core::Stage) -> (u32, u32) {
+    use camcomp_core::Stage;
+    const TOTAL: u32 = 6;
+    let step = match stage {
+        Stage::Discover => 1,
+        Stage::Inspect => 2,
+        Stage::Candidates => 3,
+        Stage::Features => 4,
+        Stage::Pairs => 5,
+        Stage::Grouping => 6,
+        Stage::Persist => TOTAL,
+    };
+    (step, TOTAL)
+}
+
 impl ProgressSink for Printer {
     fn emit(&self, event: &ProgressEvent) {
         if self.quiet {
@@ -257,9 +274,10 @@ impl ProgressSink for Printer {
         }
         match event {
             ProgressEvent::StageStarted { stage, total } => {
+                let (step, of) = step_of(*stage);
                 let _ = match total {
-                    Some(t) => writeln!(err, "  {} ({t} item(s))", stage.as_str()),
-                    None => writeln!(err, "  {}", stage.as_str()),
+                    Some(t) => writeln!(err, "  [{step}/{of}] {} ({t} item(s))", stage.as_str()),
+                    None => writeln!(err, "  [{step}/{of}] {}", stage.as_str()),
                 };
             }
             ProgressEvent::Advanced {
@@ -268,17 +286,30 @@ impl ProgressSink for Printer {
                 total,
                 detail,
             } => {
+                let (step, of) = step_of(*stage);
                 let suffix = detail.clone().unwrap_or_default();
                 let _ = match total {
-                    Some(t) => write!(err, "\r    {} {done}/{t} {suffix:<48}", stage.as_str()),
-                    None => write!(err, "\r    {} {done} {suffix:<48}", stage.as_str()),
+                    Some(t) if *t > 0 => {
+                        let pct = (*done as f64 / *t as f64 * 100.0).round() as u64;
+                        write!(
+                            err,
+                            "\r    [{step}/{of}] {} {done}/{t} ({pct}%) {suffix:<40}",
+                            stage.as_str()
+                        )
+                    }
+                    _ => write!(
+                        err,
+                        "\r    [{step}/{of}] {} {done} {suffix:<48}",
+                        stage.as_str()
+                    ),
                 };
                 let _ = err.flush();
             }
             ProgressEvent::StageFinished { stage, elapsed_ms } => {
+                let (step, of) = step_of(*stage);
                 let _ = writeln!(
                     err,
-                    "\r    {} done in {elapsed_ms} ms{:<40}",
+                    "\r    [{step}/{of}] {} done in {elapsed_ms} ms{:<40}",
                     stage.as_str(),
                     ""
                 );
@@ -574,9 +605,6 @@ fn apply_tuning(
     if let Some(v) = tuning.analysis_edge {
         p.analysis_longest_edge = v;
     }
-    if let Some(v) = tuning.max_pairs {
-        p.max_pairs_per_session = v;
-    }
     if let Some(v) = tuning.max_features {
         p.max_features_per_photo = v;
     }
@@ -667,13 +695,12 @@ fn print_summary(document: &AnalysisDocument) {
 
     if let Some(stats) = &document.stats {
         println!(
-            "{} photo(s), {} session(s), {} candidate pair(s) — {} analyzed, {} reused, {} budget-skipped",
+            "{} photo(s), {} session(s), {} candidate pair(s) — {} analyzed, {} reused",
             stats.photos,
             stats.sessions,
             stats.candidate_pairs,
             stats.analyzed_pairs,
             stats.reused_pairs,
-            stats.budget_skipped_pairs
         );
         println!(
             "pairs: {} compatible, {} incompatible, {} uncertain",

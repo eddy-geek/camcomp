@@ -725,11 +725,11 @@ Also verify:
 - [x] Automatic groups and evidence are separate from manual overrides.
 - [x] Human add/remove/split/merge/re-anchor operations are representable.
 - [ ] Thresholds, weights, and gates are the values calibrated in Phase 1 against the real sets, not the placeholders in the initial specification — kept at spec defaults on purpose; the composite score does not discriminate on the labelled set (`IMPLEM-DROP1.md` §6.3), so `thresholdsProvisional` stays `true`.
-- [ ] Every real set is classified correctly — 11 of 13 labelled groups reproduced automatically, 0 false positives (`IMPLEM-DROP1.md` §6.1); the 2 misses are named and each reachable by one override.
+- [ ] Every real set is classified correctly — 12 of 13 labelled groups reproduced automatically, 0 false positives (`IMPLEM-DROP1.md` §6.1); the remaining miss is named and reachable by one override.
 
 ### 19.1bis Performance and scale
 
-- [x] Pairs analyzed per session are bounded by an explicit budget; skipped pairs are `uncertain`, visible, and analyzable on demand.
+- [x] ~~Pairs analyzed per session are bounded by an explicit budget; skipped pairs are `uncertain`, visible, and analyzable on demand.~~ Reverted: the per-session pair budget was removed after wrap-up because a run that silently leaves pairs partially analyzed is worse UX than one that takes longer but finishes completely. Every candidate pair is now either visually analyzed or decided by a metadata prefilter (`IMPLEM-DROP1.md` §7.4, "Status" note).
 - [ ] A documented reference dataset (order of hundreds of photos) analyzes cold within a stated time — warm reload is near-instant (met), but the largest reference set is six photos, so the hundreds-of-photos cold-time claim is untested; per-pair and per-decode costs are measured for extrapolation (`IMPLEM-DROP1.md` §6.10, §7.4).
 - [ ] Peak memory is measured and documented for the native path, and bounded by an explicit guard — measured (`peakAnalysisPixels`, ~150 MB for 50 MP) but no allocation guard beyond the pixel-count limit is enforced (`IMPLEM-DROP1.md` §7.4).
 - [x] Analysis is cancellable and resumable without losing completed work.

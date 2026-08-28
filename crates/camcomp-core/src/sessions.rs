@@ -232,10 +232,8 @@ pub struct CandidatePair {
     pub time_distance_seconds: i64,
     /// Focal comparison.
     pub focal: FocalComparison,
-    /// `false` when the per-session budget was exhausted before this pair.
-    pub within_budget: bool,
-    /// The caller asked for this pair explicitly, which overrides *both* the
-    /// budget and the focal prefilter.
+    /// The caller asked for this pair explicitly, which overrides the focal
+    /// prefilter.
     ///
     /// Needed because a manual group member may have no usable focal metadata
     /// yet still need an alignment for the viewer (`SPEC.md` §6).
@@ -248,22 +246,21 @@ impl CandidatePair {
     /// A known focal mismatch is decided from metadata alone, so no SIFT work is
     /// spent on it (`PLAN-DROP1.md` §10.3) — unless the caller forced the pair.
     pub fn should_analyze(&self) -> bool {
-        self.forced || (self.within_budget && self.focal.state != FocalCompatibility::Incompatible)
+        self.forced || self.focal.state != FocalCompatibility::Incompatible
     }
 }
 
-/// Generate every in-session pair, ordered and budgeted.
+/// Generate every in-session pair.
 ///
-/// Photos need not be consecutive to be candidates. The budget is spent in
-/// increasing capture-time distance, because near-simultaneous photos are the
-/// intended comparison case; the remainder is reported as skipped rather than
-/// dropped (`SPEC.md` §4.3).
+/// Photos need not be consecutive to be candidates. Every metadata-plausible
+/// pair within a session is generated; the focal prefilter, not a work cap,
+/// is what keeps the visual half of the pipeline off pairs that are already
+/// decided (`SPEC.md` §4.3).
 pub fn generate_candidates(
     assignment: &SessionAssignment,
     photos: &[InspectedPhoto],
     tolerance: f64,
     native_lens_tolerance: f64,
-    max_pairs_per_session: usize,
 ) -> Vec<CandidatePair> {
     let index: std::collections::HashMap<&str, &InspectedPhoto> =
         photos.iter().map(|p| (p.id.as_str(), p)).collect();
@@ -294,23 +291,11 @@ pub fn generate_candidates(
                         tolerance,
                         native_lens_tolerance,
                     ),
-                    within_budget: true,
                     forced: false,
                 });
             }
         }
-
-        // Closest in time first; ties resolved by ID so the budget cut is stable.
-        pairs.sort_by(|x, y| {
-            x.time_distance_seconds
-                .cmp(&y.time_distance_seconds)
-                .then(x.a.cmp(&y.a))
-                .then(x.b.cmp(&y.b))
-        });
-        for (rank, pair) in pairs.iter_mut().enumerate() {
-            pair.within_budget = rank < max_pairs_per_session;
-        }
-        // Restore a stable, readable output order.
+        // Stable, readable output order.
         pairs.sort_by(|x, y| x.a.cmp(&y.a).then(x.b.cmp(&y.b)));
         out.extend(pairs);
     }
@@ -623,7 +608,6 @@ mod tests {
                 0.10,
                 0.20,
             ),
-            within_budget: true,
             forced: false,
         };
         assert!(unknown.should_analyze());
@@ -638,12 +622,6 @@ mod tests {
             ..unknown.clone()
         };
         assert!(!mismatch.should_analyze());
-
-        let skipped = CandidatePair {
-            within_budget: false,
-            ..unknown
-        };
-        assert!(!skipped.should_analyze());
     }
 
     #[test]
@@ -654,7 +632,7 @@ mod tests {
             photo("p3", 20, Some(24.0), "c"),
         ];
         let assignment = detect_sessions(&photos, 30);
-        let pairs = generate_candidates(&assignment, &photos, 0.10, 0.20, 400);
+        let pairs = generate_candidates(&assignment, &photos, 0.10, 0.20);
         assert_eq!(pairs.len(), 3);
         assert!(pairs.iter().any(|p| p.a == "p1" && p.b == "p3"));
     }
@@ -663,7 +641,7 @@ mod tests {
     fn candidate_ids_are_canonically_ordered() {
         let photos = vec![photo("zz", 0, None, "a"), photo("aa", 1, None, "b")];
         let assignment = detect_sessions(&photos, 30);
-        let pairs = generate_candidates(&assignment, &photos, 0.10, 0.20, 400);
+        let pairs = generate_candidates(&assignment, &photos, 0.10, 0.20);
         assert_eq!(pairs.len(), 1);
         assert_eq!(pairs[0].a, "aa");
         assert_eq!(pairs[0].b, "zz");
@@ -676,39 +654,22 @@ mod tests {
             photo("p2", 5, Some(24.0), "b"),
             photo("p3", 9, Some(50.0), "c"),
         ];
-        let first = generate_candidates(&detect_sessions(&photos, 30), &photos, 0.10, 0.20, 400);
+        let first = generate_candidates(&detect_sessions(&photos, 30), &photos, 0.10, 0.20);
         photos.rotate_left(2);
-        let second = generate_candidates(&detect_sessions(&photos, 30), &photos, 0.10, 0.20, 400);
+        let second = generate_candidates(&detect_sessions(&photos, 30), &photos, 0.10, 0.20);
         assert_eq!(first, second);
     }
 
     #[test]
-    fn a_large_session_is_capped_and_spends_the_budget_on_the_closest_pairs() {
-        // 30 photos one second apart: 435 pairs, budget 20.
+    fn a_large_session_generates_every_pair() {
+        // 30 photos one second apart: 435 pairs, no cap.
         let photos: Vec<InspectedPhoto> = (0..30)
             .map(|i| photo(&format!("p{i:02}"), i, Some(24.0), "a"))
             .collect();
         let assignment = detect_sessions(&photos, 30);
         assert_eq!(assignment.sessions.len(), 1);
-        let pairs = generate_candidates(&assignment, &photos, 0.10, 0.20, 20);
-        assert_eq!(pairs.len(), 435, "every pair must still be reported");
-        let analyzed: Vec<&CandidatePair> = pairs.iter().filter(|p| p.within_budget).collect();
-        assert_eq!(analyzed.len(), 20);
-        // The 29 one-second-apart pairs are the closest; the budget must go to
-        // those first, so every selected pair is at distance 1.
-        assert!(analyzed.iter().all(|p| p.time_distance_seconds == 1));
-        assert_eq!(pairs.iter().filter(|p| !p.within_budget).count(), 415);
-    }
-
-    #[test]
-    fn a_zero_budget_analyzes_nothing_but_still_reports_every_pair() {
-        let photos = vec![
-            photo("p1", 0, Some(24.0), "a"),
-            photo("p2", 1, Some(24.0), "b"),
-        ];
-        let pairs = generate_candidates(&detect_sessions(&photos, 30), &photos, 0.10, 0.20, 0);
-        assert_eq!(pairs.len(), 1);
-        assert!(!pairs[0].within_budget);
+        let pairs = generate_candidates(&assignment, &photos, 0.10, 0.20);
+        assert_eq!(pairs.len(), 435, "every pair must be reported");
     }
 
     #[test]
@@ -719,7 +680,7 @@ mod tests {
         ];
         let assignment = detect_sessions(&photos, 30);
         assert_eq!(assignment.sessions.len(), 2);
-        assert!(generate_candidates(&assignment, &photos, 0.10, 0.20, 400).is_empty());
+        assert!(generate_candidates(&assignment, &photos, 0.10, 0.20).is_empty());
     }
 
     #[test]

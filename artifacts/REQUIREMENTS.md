@@ -72,7 +72,7 @@ Build an application that can compare photos taken by several cameras or phones,
 
 ## 8. Non-functional expectations
 
-- Target dataset size for Drop 1: hundreds of photos per folder, a handful of photos per shooting session. Beyond that, analysis time must degrade gracefully (see the pair-budget rule in `SPEC.md` §4.3) rather than becoming quadratically unusable.
+- Target dataset size for Drop 1: hundreds of photos per folder, a handful of photos per shooting session. Beyond that, analysis time must degrade gracefully through the cheap metadata prefilters (see `SPEC.md` §4.3) rather than becoming quadratically unusable; a run must never silently leave part of a session unanalyzed.
 - Analysis must be interruptible, must report progress, and must be resumable from the cached `camcomp.json`.
 - Photos are private data. In the default (local/desktop) delivery, no photo or metadata leaves the machine.
 

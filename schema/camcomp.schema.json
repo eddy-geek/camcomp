@@ -35,7 +35,7 @@
       }
     },
     "pairs": {
-      "description": "Pair results, including pairs skipped by the budget.",
+      "description": "Pair results for every candidate pair.",
       "type": "array",
       "items": {
         "$ref": "#/$defs/PairResult"
@@ -237,7 +237,7 @@
           "default": {}
         },
         "fieldOfViewTolerance": {
-          "description": "Maximum relative difference of *diagonal angle of view*, derived from the\n35 mm equivalent focal lengths (`SPEC.md` §4.2).\n\nNot a focal ratio: angle of view is `2·atan(d / 2f)`, so a constant\nangular tolerance is more permissive at the wide end and stricter at the\nlong end than a constant focal ratio. `0.10` here is within a percent of\nthe 15 % focal rule of `REQUIREMENTS.md` §3 at main-camera focal lengths,\nand it is the only basis that orders the labelled sets correctly\n(`IMPLEM-DROP1.md` §6.11).",
+          "description": "Maximum relative difference of *diagonal angle of view*, derived from the\n35 mm equivalent focal lengths (`SPEC.md` §4.2).\n\nNot a focal ratio: angle of view is `2·atan(d / 2f)`, so a constant\nangular tolerance is more permissive at the wide end and stricter at the\nlong end than a constant focal ratio. `0.15` here is within the valid\nwindow measured over the labelled sets: the widest pair that must be\naccepted under this tier now measures 0.147 (`tstgrp3` g1 and `tstgrp5`\ng1, after `tstgrp5` was relabelled into a single group) and the closest\nthat must be rejected measures 0.750 (`IMPLEM-DROP1.md` §6.11, revised).",
           "type": "number",
           "format": "double"
         },
@@ -273,12 +273,6 @@
           "description": "Guard on decoded pixel count, per photo.",
           "type": "number",
           "format": "double"
-        },
-        "maxPairsPerSession": {
-          "description": "Upper bound on pairs actually analyzed per session.",
-          "type": "integer",
-          "format": "uint",
-          "minimum": 0
         },
         "minKeypointsForDecision": {
           "description": "Below this keypoint count a photo cannot produce a decision, only\n`uncertain` (`SPEC.md` §5.2).",
@@ -331,7 +325,6 @@
         "fieldOfViewTolerance",
         "compatibilityThreshold",
         "analysisLongestEdge",
-        "maxPairsPerSession",
         "maxFeaturesPerPhoto",
         "loweRatio",
         "mutualMatch",
@@ -1230,11 +1223,6 @@
       "description": "Why a pair ended up `uncertain`, or why it was not analyzed.",
       "oneOf": [
         {
-          "description": "Skipped by the per-session pair budget. Analyzable on demand.",
-          "type": "string",
-          "const": "budget"
-        },
-        {
           "description": "One or both photos yielded too few keypoints.",
           "type": "string",
           "const": "low-texture"
@@ -1610,12 +1598,6 @@
           "format": "uint",
           "minimum": 0
         },
-        "budgetSkippedPairs": {
-          "description": "Pairs skipped by the budget.",
-          "type": "integer",
-          "format": "uint",
-          "minimum": 0
-        },
         "cancelled": {
           "description": "`true` when the run stopped early because it was cancelled.",
           "type": "boolean"
@@ -1699,7 +1681,6 @@
         "candidatePairs",
         "analyzedPairs",
         "reusedPairs",
-        "budgetSkippedPairs",
         "compatiblePairs",
         "incompatiblePairs",
         "uncertainPairs",

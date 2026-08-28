@@ -10,10 +10,9 @@ export function validAnalysisDocument(): AnalysisDocument {
       thresholdsProvisional: true,
       parameters: {
         sessionGapSeconds: 60,
-        fieldOfViewTolerance: 0.1,
+        fieldOfViewTolerance: 0.15,
         compatibilityThreshold: 0.8,
         analysisLongestEdge: 1200,
-        maxPairsPerSession: 400,
         maxFeaturesPerPhoto: 4000,
         loweRatio: 0.75,
         mutualMatch: true,

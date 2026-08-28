@@ -1,3 +1,46 @@
+=== === === === === === === === === === === === 
+DROP 1
+=== === === === === === === === === === === === 
+
+---
+---
+---
+read requirement, spec and plan in ./artifacts ; implement the plan. your goal is to get it to build, pass unit-test, and complete the ./test/tstgrp* scenarii without crash, at least on 1 platform (desktop or web)
+---
+write your notes so far to IMPLEM-DROP1.md and continue
+---
+update implementation notes incl a detailed status of your new tests + of the tstgrp* calibration tests. (there may be mistakes in the user-made tagging of groups, 100% not needed) and write a new user-facing doc/ then continue your wrap-up. I've tried to fix things so you can run commands but if obvious commands fail stop early.
+---
+start from requirements (for broad context) and #[[artifacts/IMPLEM-DROP1.md]] for the current status. 1) relax a bit the grouping to to match a few more of the calibration sets (goal is NOT to cover 100% at all costs relax the focal so that both wide angle (0.6x of oppo and 0.5x of pixel) 2) when running the calibration suite, attempt a run without the 30s time span detection, in order to more thoroughly test the other part fof the algo 3) harden the oppo mode detection here is a sample over a much larger set of pics: ``` exiftool -UserComment **/*.heic | rg '^User' | sort | uniq -c 2 User Comment : oplus_13156483328 2 User Comment : oplus_13156483360 112 User Comment : oplus_537919488 54 User Comment : oplus_537919520 23 User Comment : oplus_537919744 20 User Comment : oplus_537919776 61 User Comment : oplus_537927680 17 User Comment : oplus_537927712 11 User Comment : oplus_605028352 1 User Comment : oplus_672137216 1 User Comment : oplus_672137248 2 User Comment : oplus_8861515808 2 User Comment : oplus_8861523968 2 User Comment : oplus_8861524000 ``` I have mostly/only used "auto", "master", and "hi-res", at various focals. I think main can shoot in high-res spontaneously though. and master might not be distinguished easily except for shorter exposure (darker) #1 is oplus_537919488 which is certain "auto" I can do a dedicated shoot if unclear
+---
+continue, make sure to apply your initial insight to use the FOV ratio instead of the 35mm focal length ratio
+---
+suddenly the tests seem to take a loooong time. is it expected ? I killed 1 test which seemed stuck for a very long time taking 100% of all CPUs. maybe we should have timeouts to avoid that ? riught it's ./camcomp/target/debug/deps/reference_sets-61a3f29c88e61908 which is very long. I'm noty clear iof thats' expected, but that's really too long if it's not a bug, maybe downscale the images more ?? make sure to investigate before any decision. start with an update to current IMPLEM notes so we don't get lost.
+---
+it's been running for at least 5 minutes, with RAM usage varying but right now at 1.8G virtual / 700M resident, so I suggest not waiting and investigating the bug
+---
+I'm worried you're overcomplexifying, by wanting to keep the 5-test architecture. be more aggressive and creative in reworking how the coveraage is distributed accross tests, and as well youy can have build a much smaller sample for some of them I guess. last resirt, even bundling all current coverage in single test would be acceptable
+---
+turn this into a PLAN-TEST-REFACTOR.md and stop there.
+---
+implement #[artifacts/PLAN-DROP1-TEST-REFACTOR.md]]
+try separately the rust `heic` crate to see if it speeds up decode in both debug or release. if so, switch to it, AGPL is not an issue, just create an AGPL LICENSE.md anyway.
+---
+estimate time needed to run the algo on all pictures in ./data/* eg simulate dumbed-down metadata pre-filter to estimate how many picture comparison will be needed, times the time of 1 comparison
+
+---
+the 3 pictures in this group are (I think) g1-oppo-ai-IMG20260822115355.heic focal35: 140 mm - FOV 14.7 deg g1-oppo-master-IMG20260822115411.heic - focal35: 140 mm - FOV 14.7 deg g1-pxl-PXL_20260822_095351447.jpg - focal35: 110 mm - FOV 18.6 deg check how many more pictures & picture pairs would be analyzed in the whole ./data/* folders, if we were to relax the angular difference to include that one (to 0.15 or 0.21, whichever works) if it seems acceptable, do it also I see many ` "budgetSkippedPairs"` in my output, this is bad UX to silently do half the work... either remove the budget feature or ask when budget is exhausted
+
+---
+for budget, KISS, just remove the feature and mark progress a bit more clearly (eg Step 3/3 ; X% completed)
+for the new FOV threshold, prrfect, continue, I have fixed grp5 accoridingly, highlight if any other needs fixing
+
+
+=== === === === === === === === === === === === 
+DROP 2
+=== === === === === === === === === === === === 
+
+---
 Q: Which delivery target should PLAN-DROP2 treat as required?
 Even if drop 1 may end up desktop-only bcause of image analysis constraints, I would like drop 2 to be web-first, static PWA as much as possible. it is fine if it is chrome-only (so that eg File System Access API / OPFS can be used to load full folder easily). if not, fall back to tauri as needed.
 Q: What should replace the plain-JavaScript DROP1 spike frontend?
@@ -152,7 +195,16 @@ I guess PNG will also raise RAM a bit... I thing 2 GB is still (barely) acceptab
 do include it, with a user warning of high ram
 
 
+=== === === === === === === === === === === === 
+DROP 3 HDR
+=== === === === === === === === === === === === 
+
+---
 start at @README.md  . we are at @IMPLEM-DROP2.md .
 images are usually HDR, either built in heic or with JPG Ultra HDR gain map which is supportedby major browsers:  Google Chrome, Microsoft Edge, Brave, Opera, and Apple Safari fully support JPEG Ultra HDR (gain map) images (while Mozilla Firefox falls back to standard SDR)
 
 audit whether all the rendering path (eg conversion + openseamap rendering) will support it properly ie forward the gain map and use compatible browser rendering primitives. when it does not (eg PNG I guess ??) investigate alternatives with their pros/cons. highlight where it's not possible at all (we should warn the user when falling back to SDR eg on Firefox). Do not code but make a report + ADR in ADR-DROP3-HDR.md
+
+---
+agree with all decisions. . the HEIC I have currently do not seem HDR-y, if confirmed, there is no more need for  the heic HDR rendering.
+de-risk what you can then create PLAN-DROP3-HDR.md ready for implementation

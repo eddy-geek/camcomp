@@ -28,9 +28,8 @@ use crate::metrics::{analyze_pair, PairInput};
 use crate::progress::{CancelToken, NoopProgress, ProgressSink, Reporter, Stage};
 use crate::schema::{
     canonical_pair_id, AlgorithmInfo, AnalysisDocument, ApplicationInfo, Configuration, Dimensions,
-    FeatureSummary, Fingerprint, FocalCompatibility, ManualOverride, PairReason, PairResult,
-    PairState, Photo, PhotoMetadata, RunStats, Session, SourceInfo, TimestampSource,
-    SCHEMA_VERSION,
+    FeatureSummary, Fingerprint, ManualOverride, PairReason, PairResult, PairState, Photo,
+    PhotoMetadata, RunStats, Session, SourceInfo, TimestampSource, SCHEMA_VERSION,
 };
 use crate::sessions::{detect_sessions, generate_candidates, CandidatePair, FocalDescriptor};
 use crate::{Error, Result};
@@ -40,7 +39,7 @@ use crate::{Error, Result};
 pub struct AnalysisOptions {
     /// Algorithm identity, parameters, weights and gates.
     pub algorithm: AlgorithmInfo,
-    /// Canonical pair IDs to analyze even if the budget skipped them
+    /// Canonical pair IDs to analyze even if the focal prefilter rejected them
     /// (`SPEC.md` §4.3).
     pub force_pairs: Vec<String>,
     /// Reuse cached pair results from the previous document.
@@ -518,9 +517,9 @@ pub fn analyze(
         &photos,
         params.field_of_view_tolerance,
         params.field_of_view_tolerance_native_lens,
-        params.max_pairs_per_session,
     );
-    // Honour explicit requests to analyze a pair the prefilters had skipped.
+    // Honour explicit requests to analyze a pair the focal prefilter had
+    // rejected.
     //
     // A selector may be a canonical pair ID, or a photo ID, in which case every
     // pair involving that photo is forced. The second form is what a caller
@@ -535,7 +534,6 @@ pub fn analyze(
                     || pair_id.contains(selector.as_str())
             });
             if matched {
-                candidate.within_budget = true;
                 candidate.forced = true;
             }
         }
@@ -602,25 +600,13 @@ pub fn analyze(
             correspondences: vec![],
         };
 
-        if !candidate.should_analyze() && candidate.focal.state == FocalCompatibility::Incompatible
-        {
+        if !candidate.should_analyze() {
             // Decided from metadata alone: no SIFT work is spent here.
             results.insert(
                 id.clone(),
                 PairResult {
                     state: PairState::Incompatible,
                     reason: Some(PairReason::FocalMismatch),
-                    ..base
-                },
-            );
-            continue;
-        }
-        if !candidate.should_analyze() {
-            results.insert(
-                id.clone(),
-                PairResult {
-                    state: PairState::Uncertain,
-                    reason: Some(PairReason::Budget),
                     ..base
                 },
             );
@@ -924,10 +910,6 @@ pub fn analyze(
         candidate_pairs: candidates.len(),
         analyzed_pairs: analyzed,
         reused_pairs: reused,
-        budget_skipped_pairs: pair_results
-            .iter()
-            .filter(|p| p.reason == Some(PairReason::Budget))
-            .count(),
         compatible_pairs: counts(PairState::Compatible),
         incompatible_pairs: counts(PairState::Incompatible),
         uncertain_pairs: counts(PairState::Uncertain),
@@ -1085,7 +1067,6 @@ pub fn regroup(
             session_id: p.session_id.clone(),
             time_distance_seconds: p.time_distance_seconds,
             focal: p.focal.clone(),
-            within_budget: p.reason != Some(PairReason::Budget),
             forced: false,
         })
         .collect();
@@ -1280,6 +1261,7 @@ pub fn map_point_through_group(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::schema::FocalCompatibility;
 
     /// Process-unique so two concurrent `cargo test` invocations cannot delete
     /// each other's fixtures.
@@ -1545,10 +1527,9 @@ mod tests {
         let dir = temp_dir("forcedphoto");
         write_png(&dir, "a.png", 128, 96, 1, 0);
         write_png(&dir, "b.png", 128, 96, 1, 4);
-        // Nothing is analyzed without timestamps, so use the budget to create a
-        // skipped pair and then force it by naming one of its photos.
-        let mut options = AnalysisOptions::default();
-        options.algorithm.parameters.max_pairs_per_session = 0;
+        // Nothing is analyzed without timestamps, so photos without a session
+        // never form a candidate pair; force it by naming one of the photos.
+        let options = AnalysisOptions::default();
         let doc = analyze_quiet(std::slice::from_ref(&dir), &options, None).unwrap();
         let photo = doc.photos[0].id.clone();
 

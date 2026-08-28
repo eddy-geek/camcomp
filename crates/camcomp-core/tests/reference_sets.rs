@@ -525,12 +525,11 @@ fn metadata_prefilters_decide_before_any_pixel_is_read() {
     // The pair of measurements the angle-of-view basis exists for
     // (`IMPLEM-DROP1.md` §6.11). By focal ratio these two are ordered the wrong
     // way round — 0.250 for the pair the user labelled together against 0.167
-    // for the pair they labelled apart — so a focal-ratio threshold cannot
-    // exist.
-    if let (Some(wide), Some(zoomed)) = (
-        sets.iter().find(|s| set_name(s) == "tstgrp4"),
-        sets.iter().find(|s| set_name(s) == "tstgrp5"),
-    ) {
+    // for a pair once labelled apart in the same set — so a focal-ratio
+    // threshold cannot exist. Both measurements live inside `tstgrp4` itself:
+    // `g2` is the accepted native-ultrawide pair, and every pair crossing `g3`
+    // (one side digitally zoomed) is the rejected one.
+    if let Some(wide) = sets.iter().find(|s| set_name(s) == "tstgrp4") {
         // Two native ultrawides, 15 mm against 12 mm: accepted under the
         // relaxed tier, and the document says which tier decided it.
         let document = shared(wide);
@@ -566,24 +565,31 @@ fn metadata_prefilters_decide_before_any_pixel_is_read() {
             "the labelled ultrawide pair must end up in one group"
         );
 
-        // A 1.21x zoom step on one side: rejected from metadata, with no
-        // pixels spent, even though its focal ratio is the *smaller* of the
-        // two.
-        let document = shared(zoomed);
+        // `g3`'s Pixel photo used digital zoom, so every pair crossing *it*
+        // (not the Oppo `g3` photo, which is native) is rejected from
+        // metadata, with no pixels spent, even though several of those pairs
+        // have a *smaller* focal ratio than the accepted g2 pair.
         let across: Vec<_> = document
             .pairs
             .iter()
             .filter(|p| {
-                let label = |id: &String| {
+                let is_zoomed_g3 = |id: &String| {
                     document
                         .photo(id)
-                        .map(|photo| photo.path.contains("g1-"))
+                        .map(|photo| photo.path.contains("g3-PXL"))
                         .unwrap_or(false)
                 };
-                label(&p.a) != label(&p.b)
+                let is_other_group = |id: &String| {
+                    document
+                        .photo(id)
+                        .map(|photo| !photo.path.contains("g3-"))
+                        .unwrap_or(false)
+                };
+                (is_zoomed_g3(&p.a) && is_other_group(&p.b))
+                    || (is_zoomed_g3(&p.b) && is_other_group(&p.a))
             })
             .collect();
-        assert!(!across.is_empty(), "expected cross-label pairs in tstgrp5");
+        assert!(!across.is_empty(), "expected cross-label pairs against g3");
         for pair in across {
             assert!(
                 !pair.focal.native_lens_pair,
@@ -604,7 +610,7 @@ fn metadata_prefilters_decide_before_any_pixel_is_read() {
             );
         }
     } else {
-        eprintln!("tstgrp4 or tstgrp5 not present; skipping framing predicate check");
+        eprintln!("tstgrp4 not present; skipping framing predicate check");
     }
 
     // tstgrp7 g2 is the measurement behind the digital-zoom policy: 35 mm on
@@ -799,10 +805,14 @@ fn manual_overrides_reach_the_labelled_answer_and_survive_reanalysis() {
         eprintln!("tstgrp3 not present; skipping");
         return;
     };
-    let document = shared(set);
-    // tstgrp3 labels all three photos as one group; the Pixel is excluded
-    // automatically because its framing differs from the Oppo's by 0.144 of
-    // angle of view against a 0.10 tolerance (`IMPLEM-DROP1.md` §6.11).
+    // At the shipped default `tstgrp3` groups automatically (§6.11). To exercise
+    // the human-correction path against a real fixture, tighten the strict tier
+    // back to its pre-§6.11-revision value so the Pixel is excluded the way it
+    // used to be — the point of this test is the override mechanism, not the
+    // calibrated default.
+    let mut tight = options();
+    tight.algorithm.parameters.field_of_view_tolerance = 0.10;
+    let document = pipeline::analyze_quiet(std::slice::from_ref(set), &tight, None).unwrap();
     assert_eq!(document.groups.len(), 1);
     assert_eq!(document.ungrouped.len(), 1);
     let group_id = document.groups[0].id.clone();
@@ -821,7 +831,7 @@ fn manual_overrides_reach_the_labelled_answer_and_survive_reanalysis() {
         created_at: None,
         note: Some("labelled as one group by the reference set".into()),
     }];
-    let corrected = pipeline::regroup(document, &overrides).unwrap();
+    let corrected = pipeline::regroup(&document, &overrides).unwrap();
     corrected.validate().unwrap();
     assert_eq!(corrected.groups.len(), 1);
     assert_eq!(corrected.groups[0].photo_ids.len(), 3);
@@ -843,7 +853,7 @@ fn manual_overrides_reach_the_labelled_answer_and_survive_reanalysis() {
 
     // Re-analysis carries the override forward rather than discarding it.
     let reanalyzed =
-        pipeline::analyze_quiet(std::slice::from_ref(set), &options(), Some(&corrected)).unwrap();
+        pipeline::analyze_quiet(std::slice::from_ref(set), &tight, Some(&corrected)).unwrap();
     assert_eq!(reanalyzed.manual_overrides.len(), 1);
     let group = reanalyzed
         .groups
@@ -864,7 +874,7 @@ fn manual_overrides_reach_the_labelled_answer_and_survive_reanalysis() {
         .expect("the focal-rejected pair is recorded")
         .id
         .clone();
-    let mut forced = options();
+    let mut forced = tight.clone();
     forced.force_pairs = vec![outsider.clone()];
     let after =
         pipeline::analyze_quiet(std::slice::from_ref(set), &forced, Some(&reanalyzed)).unwrap();
@@ -887,63 +897,25 @@ fn manual_overrides_reach_the_labelled_answer_and_survive_reanalysis() {
 }
 
 #[test]
-fn the_pair_budget_bounds_the_work_and_reports_what_it_skipped() {
+fn every_candidate_pair_is_analyzed_or_metadata_rejected() {
+    // No pair budget: every in-session candidate is either visually analyzed
+    // or decided from metadata alone (`SPEC.md` §4.3, revised).
     let sets = reference_sets();
     let Some(set) = sets.iter().find(|s| set_name(s) == "tstgrp4") else {
         eprintln!("tstgrp4 not present; skipping");
         return;
     };
-    let mut budgeted = options();
-    budgeted.algorithm.parameters.max_pairs_per_session = 2;
-    // Widen the focal prefilter so the budget, not the focal length, is what
-    // limits the work for most pairs.
-    budgeted.algorithm.parameters.field_of_view_tolerance = 1.0;
-    let document = pipeline::analyze_quiet(std::slice::from_ref(set), &budgeted, None).unwrap();
+    let document = shared(set);
     let stats = document.stats.clone().expect("stats");
-    assert!(
-        stats.analyzed_pairs <= 2,
-        "{} analyzed",
-        stats.analyzed_pairs
-    );
-    assert!(stats.budget_skipped_pairs > 0);
-    // A tolerance of 1.0 still rejects anything beyond a 2:1 focal ratio, and
-    // tstgrp4 spans 12 to 70 mm equivalent, so some pairs remain decided from
-    // metadata. Every candidate must be accounted for by exactly one outcome.
     let focal_rejected = document
         .pairs
         .iter()
         .filter(|p| p.reason == Some(PairReason::FocalMismatch))
         .count();
     assert_eq!(
-        stats.analyzed_pairs + stats.budget_skipped_pairs + focal_rejected,
+        stats.analyzed_pairs + focal_rejected,
         stats.candidate_pairs,
         "every candidate pair must be accounted for"
-    );
-    for pair in document
-        .pairs
-        .iter()
-        .filter(|p| p.reason == Some(PairReason::Budget))
-    {
-        // Skipped, not decided.
-        assert_eq!(pair.state, PairState::Uncertain);
-    }
-
-    // A skipped pair can be forced on demand (`SPEC.md` §4.3).
-    let skipped = document
-        .pairs
-        .iter()
-        .find(|p| p.reason == Some(PairReason::Budget))
-        .expect("at least one skipped pair")
-        .id
-        .clone();
-    let mut forced = budgeted.clone();
-    forced.force_pairs = vec![skipped.clone()];
-    let after = pipeline::analyze_quiet(std::slice::from_ref(set), &forced, None).unwrap();
-    let pair = after.pair(&skipped).expect("the forced pair is present");
-    assert_ne!(
-        pair.reason,
-        Some(PairReason::Budget),
-        "{skipped} was still skipped after being forced"
     );
 }
 

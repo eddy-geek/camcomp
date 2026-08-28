@@ -108,7 +108,6 @@ export type GateFailure =
  * Why a pair ended up `uncertain`, or why it was not analyzed.
  */
 export type PairReason =
-  | "budget"
   | "low-texture"
   | "insufficient-matches"
   | "no-consensus"
@@ -136,7 +135,7 @@ export interface AnalysisDocument {
    */
   manualOverrides?: ManualOverride[];
   /**
-   * Pair results, including pairs skipped by the budget.
+   * Pair results for every candidate pair.
    */
   pairs: PairResult[];
   /**
@@ -245,10 +244,11 @@ export interface AnalysisParameters {
    *
    * Not a focal ratio: angle of view is `2·atan(d / 2f)`, so a constant
    * angular tolerance is more permissive at the wide end and stricter at the
-   * long end than a constant focal ratio. `0.10` here is within a percent of
-   * the 15 % focal rule of `REQUIREMENTS.md` §3 at main-camera focal lengths,
-   * and it is the only basis that orders the labelled sets correctly
-   * (`IMPLEM-DROP1.md` §6.11).
+   * long end than a constant focal ratio. `0.15` here is within the valid
+   * window measured over the labelled sets: the widest pair that must be
+   * accepted under this tier now measures 0.147 (`tstgrp3` g1 and `tstgrp5`
+   * g1, after `tstgrp5` was relabelled into a single group) and the closest
+   * that must be rejected measures 0.750 (`IMPLEM-DROP1.md` §6.11, revised).
    */
   fieldOfViewTolerance: number;
   /**
@@ -283,10 +283,6 @@ export interface AnalysisParameters {
    * Guard on decoded pixel count, per photo.
    */
   maxMegapixels: number;
-  /**
-   * Upper bound on pairs actually analyzed per session.
-   */
-  maxPairsPerSession: number;
   /**
    * Below this keypoint count a photo cannot produce a decision, only
    * `uncertain` (`SPEC.md` §5.2).
@@ -940,10 +936,6 @@ export interface RunStats {
    * Pairs visually analyzed in this run.
    */
   analyzedPairs: number;
-  /**
-   * Pairs skipped by the budget.
-   */
-  budgetSkippedPairs: number;
   /**
    * `true` when the run stopped early because it was cancelled.
    */

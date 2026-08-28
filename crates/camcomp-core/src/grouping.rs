@@ -884,7 +884,6 @@ mod tests {
                 session_id: p.session_id.clone(),
                 time_distance_seconds: p.time_distance_seconds,
                 focal: p.focal.clone(),
-                within_budget: true,
                 forced: false,
             })
             .collect()
@@ -1142,7 +1141,6 @@ mod tests {
                 applied_tolerance: Some(0.10),
                 native_lens_pair: true,
             },
-            within_budget: true,
             forced: false,
         }];
         let out = build_groups(&input(&photos, &[], &candidates, &BTreeSet::new()));

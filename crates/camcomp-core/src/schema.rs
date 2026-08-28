@@ -47,10 +47,11 @@ pub struct AnalysisParameters {
     ///
     /// Not a focal ratio: angle of view is `2·atan(d / 2f)`, so a constant
     /// angular tolerance is more permissive at the wide end and stricter at the
-    /// long end than a constant focal ratio. `0.10` here is within a percent of
-    /// the 15 % focal rule of `REQUIREMENTS.md` §3 at main-camera focal lengths,
-    /// and it is the only basis that orders the labelled sets correctly
-    /// (`IMPLEM-DROP1.md` §6.11).
+    /// long end than a constant focal ratio. `0.15` here is within the valid
+    /// window measured over the labelled sets: the widest pair that must be
+    /// accepted under this tier now measures 0.147 (`tstgrp3` g1 and `tstgrp5`
+    /// g1, after `tstgrp5` was relabelled into a single group) and the closest
+    /// that must be rejected measures 0.750 (`IMPLEM-DROP1.md` §6.11, revised).
     pub field_of_view_tolerance: f64,
     /// Same tolerance, applied when *both* photos were taken at a native lens
     /// step — no digital zoom or sensor crop on either side.
@@ -70,8 +71,6 @@ pub struct AnalysisParameters {
     pub compatibility_threshold: f64,
     /// Longest edge of the analysis image, in pixels.
     pub analysis_longest_edge: u32,
-    /// Upper bound on pairs actually analyzed per session.
-    pub max_pairs_per_session: usize,
     /// Upper bound on SIFT keypoints retained per photo.
     pub max_features_per_photo: usize,
     /// Lowe ratio-test threshold.
@@ -114,15 +113,14 @@ impl Default for AnalysisParameters {
             // (`IMPLEM-DROP1.md` §6.12).
             session_gap_seconds: 60,
             // Calibrated, not assumed: over the labelled sets the widest pair
-            // that must be accepted under this tier measures 0.038 and the
-            // closest that must be rejected measures 0.115
-            // (`IMPLEM-DROP1.md` §6.11).
-            field_of_view_tolerance: 0.10,
+            // that must be accepted under this tier measures 0.147 and the
+            // closest that must be rejected measures 0.750
+            // (`IMPLEM-DROP1.md` §6.11, revised).
+            field_of_view_tolerance: 0.15,
             field_of_view_tolerance_native_lens: default_native_lens_fov_tolerance(),
             focal_zoom_policy: FocalZoomPolicy::default(),
             compatibility_threshold: 0.80,
             analysis_longest_edge: 1200,
-            max_pairs_per_session: 400,
             max_features_per_photo: 4000,
             lowe_ratio: 0.75,
             mutual_match: true,
@@ -562,8 +560,6 @@ pub enum PairState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum PairReason {
-    /// Skipped by the per-session pair budget. Analyzable on demand.
-    Budget,
     /// One or both photos yielded too few keypoints.
     LowTexture,
     /// Too few surviving descriptor matches to fit anything.
@@ -1022,8 +1018,6 @@ pub struct RunStats {
     pub analyzed_pairs: usize,
     /// Pair results reused from the previous document.
     pub reused_pairs: usize,
-    /// Pairs skipped by the budget.
-    pub budget_skipped_pairs: usize,
     /// Pairs found compatible.
     pub compatible_pairs: usize,
     /// Pairs found incompatible.
@@ -1062,7 +1056,7 @@ pub struct AnalysisDocument {
     pub photos: Vec<Photo>,
     /// Sessions.
     pub sessions: Vec<Session>,
-    /// Pair results, including pairs skipped by the budget.
+    /// Pair results for every candidate pair.
     pub pairs: Vec<PairResult>,
     /// Groups after automatic construction and manual overrides.
     pub groups: Vec<Group>,

@@ -21,7 +21,7 @@ camcomp analyze ~/Pictures/comparison
 You get a summary and a `camcomp.json` next to the photos:
 
 ```text
-6 photo(s), 2 session(s), 5 candidate pair(s) — 3 analyzed, 0 reused, 0 budget-skipped
+6 photo(s), 2 session(s), 5 candidate pair(s) — 3 analyzed, 0 reused
 pairs: 2 compatible, 3 incompatible, 0 uncertain
 2 group(s), 2 ungrouped — 4210 ms, 4 features extracted
 
@@ -204,9 +204,9 @@ camcomp analyze photos/ --force-pair photo-cbec07d0231e
     PXL_20260822_095351447.jpg                    confidence 0.95 (direct-pair)
 ```
 
-`--force-pair` overrides both the zoom check and the workload limit. It accepts a
-photo ID, in which case every pair involving that photo is compared, or a single
-pair ID if you want to be narrower.
+`--force-pair` overrides the focal/framing prefilter. It accepts a photo ID, in
+which case every pair involving that photo is compared, or a single pair ID if
+you want to be narrower.
 
 To see what camcomp knows about one photo, including its pair IDs:
 
@@ -259,25 +259,23 @@ genuinely different scenes.
 
 ### `uncertain` is not a failure
 
-camcomp reports `uncertain` when the evidence is too weak to decide — a flat wall,
-a heavily changed scene, or a pair it skipped for workload reasons. It will not
-guess. Putting two unrelated photos in one group silently corrupts a comparison,
-whereas an `uncertain` costs you one click, so camcomp is deliberately biased
-towards admitting it does not know.
+camcomp reports `uncertain` when the evidence is too weak to decide — a flat wall
+or a heavily changed scene, most often. It will not guess. Putting two unrelated
+photos in one group silently corrupts a comparison, whereas an `uncertain` costs
+you one click, so camcomp is deliberately biased towards admitting it does not
+know.
 
 ## 7. How well does it work?
 
 On the eight labelled reference sets in `test/`, at default settings:
 
 - **no false positives** — it never put together photos that belong apart
-- **every pair it was allowed to examine, it judged correctly**
-- it reproduced 11 of 13 expected groups automatically
+- **every pair it examined, it judged correctly**
+- it reproduced 12 of 13 expected groups automatically
 
-The 2 it missed were both blocked *before* looking at any pixels: one by the
-one-photo-per-configuration rule (two shots from the same phone and mode), one by
-the framing tolerance — that pair sits close enough to a pair labelled apart in
-another set that no single tolerance can separate both correctly. Each is one
-command or one override away.
+The 1 it missed was blocked *before* looking at any pixels, by the
+one-photo-per-configuration rule (two shots from the same phone and mode). It is
+one command or one override away.
 
 Be aware of two real limitations:
 
@@ -295,13 +293,13 @@ Full evidence is in [`artifacts/IMPLEM-DROP1.md`](../artifacts/IMPLEM-DROP1.md) 
 ## 8. Speed and size
 
 - A folder re-analyzed with nothing changed takes milliseconds and reads no images.
-- Cold, budget on roughly one second per pair compared, plus 0.1–0.4 s to decode
+- Cold, plan on roughly one second per pair compared, plus 0.1–0.4 s to decode
   each photo depending on resolution.
 - Change a threshold and the affected results are recomputed; add or remove a photo
   and only the pairs involving it are.
-- Very long bursts are capped, and skipped pairs are reported as `uncertain` with
-  reason `budget`. Nothing is dropped silently, and `--force-pair` retrieves any of
-  them.
+- Every session is analyzed in full: nothing is capped or skipped for cost, so a
+  very long burst takes proportionally longer rather than reporting a partial
+  result.
 
 Supported formats: **JPEG, PNG, HEIC**. HEIC needs no extra software. RAW is not
 supported.
@@ -345,13 +343,12 @@ Common options:
 --quiet                    no progress output
 
 --session-gap SECONDS              default 60
---fov-tolerance RATIO              default 0.10 (either photo zoomed or cropped)
+--fov-tolerance RATIO              default 0.15 (either photo zoomed or cropped)
 --fov-tolerance-native-lens RATIO  default 0.20 (both at native field of view)
 --threshold SCORE                  default 0.80
 --allow-duplicate-config   permit two photos from one camera+mode per group
 --time-offset KEY=SECONDS  correct one device's clock
 --analysis-edge PIXELS     analysis resolution, default 1200
---max-pairs N              per-session workload cap, default 400
 --force-pair ID            compare regardless of the filters; takes a photo ID
                            (all its pairs) or a single pair ID
 ```
@@ -436,7 +433,7 @@ JPEG and PNG display directly. HEIC handling is capability-based:
 Sidecar use is always labelled because compression, color, crop, or content can differ.
 The worker uses lossless PNG output, runs one decode at a time, cancels when the album
 closes, and rejects images above 60 MP. A representative 50 MP comparison measured about
-2,120 MiB peak Chromium RAM, 1,828 MiB above baseline; other applications may become less
+2 GiB extra Chromium RAM; other applications may become less
 responsive. Tauri remains the lower-memory fallback and decodes HEIC off the UI thread
 into a digest-keyed lossless PNG in application cache. Neither path creates a display
 copy in the source folder. The browser worker's LGPL source and replacement information
