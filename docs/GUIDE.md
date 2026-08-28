@@ -86,10 +86,11 @@ configuration oppo-find-x9-pro--master — OPPO Find X9 Pro (master) (1 photo(s)
 configuration pixel-9-pro-xl--hdr-plus — Pixel 9 Pro XL (hdr-plus) (3 photo(s))
 ```
 
-For the Oppo Find X9 Pro, camcomp reads the mode out of a manufacturer field and
-recognises `auto` (the plain mode), `master` and `hi-res` (the 50 MP setting).
-For Google phones it recognises the HDR+ pipeline as `hdr-plus`. For anything
-else the mode is simply left blank and the configuration is just the camera.
+For OPPO metadata modes, bit meanings, Pro XDR/HDR evidence, and known
+limitations, see the [OPPO metadata specification](../artifacts/SPEC-OPPO.md).
+For Google phones camcomp recognises the HDR+ pipeline as `hdr-plus`. For
+anything else the mode is simply left blank and the configuration is just the
+camera.
 
 By default a group holds **at most one photo per configuration**, because comparing
 a configuration against itself is not the point. If you want two shots from the

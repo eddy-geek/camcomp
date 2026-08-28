@@ -1531,14 +1531,14 @@
           ]
         },
         "modeFlags": {
-          "description": "Capture flags that are *not* part of the configuration identity, for\nexample `portrait` or `burst`.",
+          "description": "Capture flags that are *not* part of the configuration identity, for\nexample `portrait`, `burst` or `flash-fired` (see `SPEC-OPPO.md`).",
           "type": "array",
           "items": {
             "type": "string"
           }
         },
         "modeLabel": {
-          "description": "Normalized mode label, for example `auto`, `master` or `hi-res`.",
+          "description": "Normalized mode label, for example `auto`, `master`, `hi-res`, `portrait`,\n`night` or `text` (see `SPEC-OPPO.md`).",
           "type": [
             "string",
             "null"

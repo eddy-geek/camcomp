@@ -850,11 +850,12 @@ export interface PhotoMetadata {
   lensModel?: string | null;
   /**
    * Capture flags that are *not* part of the configuration identity, for
-   * example `portrait` or `burst`.
+   * example `portrait`, `burst` or `flash-fired` (see `SPEC-OPPO.md`).
    */
   modeFlags?: string[];
   /**
-   * Normalized mode label, for example `auto`, `master` or `hi-res`.
+   * Normalized mode label, for example `auto`, `master`, `hi-res`, `portrait`,
+   * `night` or `text` (see `SPEC-OPPO.md`).
    */
   modeLabel?: string | null;
   /**

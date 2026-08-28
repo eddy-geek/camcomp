@@ -79,8 +79,9 @@ In the working tree, verified by `cargo test -p camcomp-core --test reference_se
   framing predicate on the ultrawide pair against the zoom step, the digital-zoom
   policy rewriting only the device that needs it, and session detection being
   switched off without changing a verdict.
-- **Label renames** followed through (`auto`, `hi-res`), plus an assertion that no
-  reference photo carries unverified mode bits.
+- **Label renames** followed through (`auto`, `hi-res`), plus an assertion that
+  unknown mode bits remain classified and do not stop the rest of the analysis;
+  the complete OPPO evidence is maintained in [`SPEC-OPPO.md`](SPEC-OPPO.md).
 
 Result: **17 tests, 13 s, release.** The debug figure is still unmeasured and is
 the open problem.

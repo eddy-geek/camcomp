@@ -92,6 +92,10 @@ impl MetadataReader for ExifMetadataReader {
                 rational_field(&exif, exif::Tag::FocalLengthIn35mmFilm).filter(|v| *v > 0.0)
             });
         out.digital_zoom_ratio = rational_field(&exif, exif::Tag::DigitalZoomRatio);
+        out.flash = exif
+            .get_field(exif::Tag::Flash, exif::In::PRIMARY)
+            .and_then(|f| f.value.get_uint(0))
+            .and_then(|value| u16::try_from(value).ok());
 
         let w = exif
             .get_field(exif::Tag::PixelXDimension, exif::In::PRIMARY)
@@ -267,7 +271,7 @@ pub fn slug(text: &str) -> String {
 /// Identified shooting mode plus the tag it came from.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ModeIdentification {
-    /// Normalized label, for example `auto`, `master`, `hi-res` or `hdr-plus`.
+    /// Normalized label, for example `auto`, `master`, `hi-res`, `night` or `text`.
     ///
     /// Part of the configuration identity, so it carries only what changes the
     /// *image pipeline*.
@@ -277,7 +281,7 @@ pub struct ModeIdentification {
     /// Which EXIF tag was used.
     pub source: Option<String>,
     /// Capture flags that do not change the pipeline and are therefore kept out
-    /// of the configuration identity: `portrait`, `burst`.
+    /// of the configuration identity: `portrait`, `burst`, `flash-fired`.
     pub flags: Vec<String>,
     /// Bits of the tag this version does not interpret.
     pub unknown_bits: Option<u64>,
@@ -292,22 +296,42 @@ const OPLUS_HIGH_RES: u64 = 0x0000_2000;
 /// Portrait-orientation capture: every observed photo has portrait pixel
 /// dimensions.
 const OPLUS_PORTRAIT: u64 = 0x0000_0020;
+/// Portrait mode marker observed as a composite vendor value.
+const OPLUS_PORTRAIT_MODE: u64 = 0x0001_0010;
+/// Night mode marker observed in the calibration corpus.
+const OPLUS_NIGHT: u64 = 0x0000_0800;
+/// Text mode marker observed in the calibration corpus.
+const OPLUS_TEXT: u64 = 0x0000_1000;
 /// Burst frame: 1:1 with the `_BURST` filename convention over 11 photos.
 const OPLUS_BURST: u64 = 0x0400_0000;
+/// EXIF `Flash` bit indicating that the flash fired.
+const EXIF_FLASH_FIRED: u16 = 0x0001;
 /// Every bit this version claims to understand.
-const OPLUS_KNOWN_FLAGS: u64 = OPLUS_MASTER | OPLUS_HIGH_RES | OPLUS_PORTRAIT | OPLUS_BURST;
+const OPLUS_KNOWN_FLAGS: u64 = OPLUS_MASTER
+    | OPLUS_HIGH_RES
+    | OPLUS_PORTRAIT
+    | OPLUS_PORTRAIT_MODE
+    | OPLUS_NIGHT
+    | OPLUS_TEXT
+    | OPLUS_BURST;
 
 /// Writer profiles observed with the flag bits masked off.
 ///
 /// The remaining bits are constant per writer, not per mode: the first value
 /// covers 269 HEICs across three folders and three days with every mode
-/// combination appearing underneath it, and the other two appear only on files
-/// that a Google Photos export re-encoded to JPEG.
+/// combination appearing underneath it; the export and calibration profiles
+/// cover JPEG and HEIC output observed in the repository.
 ///
 /// A profile that is not in this list is reported rather than assumed, which is
 /// why the list can stay short: an unknown profile is constant across a device,
 /// so it marks that device's photos without splitting its modes from each other.
-const OPLUS_KNOWN_PROFILES: [u64; 3] = [0x2010_0000, 0x2_1030_0000, 0x3_1030_0000];
+const OPLUS_KNOWN_PROFILES: [u64; 5] = [
+    0x2010_0000,
+    0x2_0030_0000,
+    0x2_1030_0000,
+    0x2_2010_0000,
+    0x3_1030_0000,
+];
 
 /// Decode an `oplus_<u64>` mode code.
 fn identify_oplus_mode(comment: &str, digits: &str) -> ModeIdentification {
@@ -327,6 +351,15 @@ fn identify_oplus_mode(comment: &str, digits: &str) -> ModeIdentification {
 
     let profile = code & !OPLUS_KNOWN_FLAGS;
     let mut parts: Vec<String> = Vec::new();
+    if code & OPLUS_PORTRAIT_MODE == OPLUS_PORTRAIT_MODE {
+        parts.push("portrait".to_string());
+    }
+    if code & OPLUS_NIGHT != 0 {
+        parts.push("night".to_string());
+    }
+    if code & OPLUS_TEXT != 0 {
+        parts.push("text".to_string());
+    }
     if code & OPLUS_HIGH_RES != 0 {
         parts.push("hi-res".to_string());
     }
@@ -357,18 +390,31 @@ fn identify_oplus_mode(comment: &str, digits: &str) -> ModeIdentification {
     out
 }
 
+fn add_flash_flag(out: &mut ModeIdentification, raw: &RawMetadata) {
+    if raw
+        .flash
+        .map(|value| value & EXIF_FLASH_FIRED != 0)
+        .unwrap_or(false)
+    {
+        out.flags.push("flash-fired".to_string());
+    }
+}
+
 /// Identify the shooting mode ([Q10] in `REQUIREMENTS.md`).
 ///
-/// The reference Oppo Find X9 Pro encodes the mode in `UserComment` as
-/// `oplus_<integer>`. Verified bits, with the evidence behind each
-/// (`IMPLEM-DROP1.md` §2.1):
+/// The reference OPPO Find X9 Pro encodes the mode in `UserComment` as
+/// `oplus_<integer>`. The complete calibration mapping and its limitations are
+/// documented in `SPEC-OPPO.md`:
 ///
 /// | mask         | meaning                      | in the configuration ID |
 /// |--------------|------------------------------|-------------------------|
-/// | `0x0100`     | Master mode                  | yes                     |
-/// | `0x2000`     | high-resolution 50 MP mode   | yes                     |
-/// | `0x0020`     | portrait-orientation capture | no                      |
-/// | `0x04000000` | burst frame                  | no                      |
+/// | `0x0100`       | Master mode                       | yes                     |
+/// | `0x2000`       | high-resolution 50 MP mode        | yes                     |
+/// | `0x10010`      | Portrait mode marker               | yes                     |
+/// | `0x0800`       | Night mode                         | yes                     |
+/// | `0x1000`       | Text mode                          | yes                     |
+/// | `0x0020`       | portrait-orientation capture       | no                      |
+/// | `0x04000000`   | burst frame                        | no                      |
 ///
 /// Anything else is reported, never guessed: unverified bits become part of the
 /// label so they cannot silently merge two shooting modes into one
@@ -383,20 +429,57 @@ pub fn identify_mode(raw: &RawMetadata) -> ModeIdentification {
         // Case-insensitive prefix: the payload is recovered from a malformed
         // character-code prefix, so its case is not something to bet on.
         if trimmed.len() > 6 && trimmed[..6].eq_ignore_ascii_case("oplus_") {
-            return identify_oplus_mode(trimmed, trimmed[6..].trim());
+            let mut out = identify_oplus_mode(trimmed, trimmed[6..].trim());
+            add_flash_flag(&mut out, raw);
+            return out;
         }
     }
     if let Some(software) = raw.software.as_deref() {
         if software.to_ascii_lowercase().starts_with("hdr+") {
-            return ModeIdentification {
+            let mut out = ModeIdentification {
                 label: Some("hdr-plus".to_string()),
                 raw: Some(software.to_string()),
                 source: Some("Software".to_string()),
                 ..Default::default()
             };
+            add_flash_flag(&mut out, raw);
+            return out;
         }
     }
-    ModeIdentification::default()
+    let mut out = ModeIdentification::default();
+    add_flash_flag(&mut out, raw);
+    out
+}
+
+/// Identify a mode using metadata and a decoded/probed pixel size.
+///
+/// OPPO's 50 MP HEIC calibration sample has no `UserComment`, but its stable
+/// 8192 × 6144 dimensions are sufficient to identify the high-resolution
+/// pipeline without guessing a vendor bit. This fallback is limited to OPPO.
+pub fn identify_mode_with_dimensions(
+    raw: &RawMetadata,
+    dimensions: (u32, u32),
+) -> ModeIdentification {
+    let mut out = identify_mode(raw);
+    let is_oppo = raw
+        .make
+        .as_deref()
+        .map(|value| value.eq_ignore_ascii_case("oppo"))
+        .unwrap_or(false)
+        || raw
+            .model
+            .as_deref()
+            .map(|value| value.to_ascii_lowercase().starts_with("oppo "))
+            .unwrap_or(false);
+    let is_50mp = matches!(dimensions, (8192, 6144) | (6144, 8192));
+    if is_oppo && is_50mp && out.label.is_none() {
+        out.label = Some("hi-res".to_string());
+        out.source = Some("PixelDimensions".to_string());
+        out.note = Some(
+            "OPPO 8192 × 6144 dimensions identify the 50 MP high-resolution pipeline".to_string(),
+        );
+    }
+    out
 }
 
 /// Portrait-orientation flag from the Oppo mode code, when present.
@@ -634,6 +717,56 @@ mod tests {
             assert_eq!(id.source.as_deref(), Some("UserComment"));
             assert_eq!(id.note.is_some(), unknown, "{value} note");
         }
+    }
+
+    #[test]
+    fn the_new_calibration_mode_markers_decode_without_folding_into_auto() {
+        let cases = [
+            ("oplus_8593080320", "auto", &[][..], false),
+            ("oplus_8593080352", "auto", &["portrait"][..], false),
+            ("oplus_8593145904", "portrait", &["portrait"][..], false),
+            ("oplus_8593082400", "night", &["portrait"][..], false),
+            ("oplus_8861515776", "auto", &[][..], false),
+            ("oplus_8861515808", "auto", &["portrait"][..], false),
+            ("oplus_13156483328", "master", &[][..], false),
+            ("oplus_9127854080", "auto", &[][..], false),
+            ("oplus_9127862272", "hi-res", &[][..], false),
+        ];
+        for (value, label, flags, unknown) in cases {
+            let id = identify_mode(&oppo(value));
+            assert_eq!(id.label.as_deref(), Some(label), "{value}");
+            assert_eq!(id.flags, flags, "{value} flags");
+            assert_eq!(id.unknown_bits.is_some(), unknown, "{value} unknown bits");
+        }
+
+        let text = identify_mode(&oppo("oplus_8591249408"));
+        assert_eq!(text.label.as_deref(), Some("text-x200140000"));
+        assert_eq!(text.unknown_bits, Some(0x2001_40000));
+    }
+
+    #[test]
+    fn a_fired_flash_is_recorded_without_becoming_a_configuration_mode() {
+        let mut raw = oppo("oplus_8861515776");
+        raw.flash = Some(0x0001);
+        let fired = identify_mode(&raw);
+        assert_eq!(fired.label.as_deref(), Some("auto"));
+        assert_eq!(fired.flags, vec!["flash-fired".to_string()]);
+
+        raw.flash = Some(0x0000);
+        assert!(identify_mode(&raw).flags.is_empty());
+    }
+
+    #[test]
+    fn missing_oppo_mode_tags_fall_back_to_the_50_mp_dimensions() {
+        let raw = RawMetadata {
+            make: Some("OPPO".into()),
+            model: Some("OPPO Find X9 Pro".into()),
+            ..Default::default()
+        };
+        let id = identify_mode_with_dimensions(&raw, (8192, 6144));
+        assert_eq!(id.label.as_deref(), Some("hi-res"));
+        assert_eq!(id.source.as_deref(), Some("PixelDimensions"));
+        assert!(id.note.is_some());
     }
 
     #[test]

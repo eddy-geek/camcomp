@@ -208,3 +208,9 @@ audit whether all the rendering path (eg conversion + openseamap rendering) will
 ---
 agree with all decisions. . the HEIC I have currently do not seem HDR-y, if confirmed, there is no more need for  the heic HDR rendering.
 de-risk what you can then create PLAN-DROP3-HDR.md ready for implementation
+
+---
+I put a lot more pictures in the data/metadata-calibration folder. each picture shows the mode that was used in the image content (highlighted in blue in the word doc being photographed) to make it easier. it covers heic, hi-res, flash, ...
+note that 50 MP hi-res is supposed to not have HDR (aka Pro XDR) by design, the rest is supposed to have it
+ use that to validate and extend the existing metadata parsing setup. Add a dedicated SPEC-OPPO.md file documenting the metadata, and replace any outdated markdown content on the topic by a ref to it. commit.
+ I have manually renamed the image's file name with the characteristics (although it can be a bit inconsistent especially Flash setting)

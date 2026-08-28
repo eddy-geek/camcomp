@@ -167,6 +167,7 @@ for working on it.
 | [`docs/GUIDE.md`](docs/GUIDE.md) | how to use it, and what to do when a group is wrong |
 | [`artifacts/REQUIREMENTS.md`](artifacts/REQUIREMENTS.md) | what the product must do |
 | [`artifacts/SPEC.md`](artifacts/SPEC.md) | how Drop 1 does it |
+| [`artifacts/SPEC-OPPO.md`](artifacts/SPEC-OPPO.md) | OPPO metadata, mode, flash, and Pro XDR evidence |
 | [`artifacts/ADR-DROP1.md`](artifacts/ADR-DROP1.md) | why this stack |
 | [`artifacts/PLAN-DROP1.md`](artifacts/PLAN-DROP1.md) | Drop 1 implementation plan and gates |
 | [`artifacts/IMPLEM-DROP1.md`](artifacts/IMPLEM-DROP1.md) | Drop 1 implementation and measurements |

@@ -283,6 +283,8 @@ pub struct RawMetadata {
     pub focal_length_35mm: Option<f64>,
     /// EXIF `DigitalZoomRatio`.
     pub digital_zoom_ratio: Option<f64>,
+    /// EXIF `Flash` bit field, when present.
+    pub flash: Option<u16>,
     /// Pixel dimensions from EXIF, when present.
     pub exif_dimensions: Option<(u32, u32)>,
     /// Non-fatal observations while parsing.

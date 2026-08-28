@@ -447,11 +447,12 @@ pub struct PhotoMetadata {
     /// Which EXIF tag the mode was read from.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode_tag_source: Option<String>,
-    /// Normalized mode label, for example `auto`, `master` or `hi-res`.
+    /// Normalized mode label, for example `auto`, `master`, `hi-res`, `portrait`,
+    /// `night` or `text` (see `SPEC-OPPO.md`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode_label: Option<String>,
     /// Capture flags that are *not* part of the configuration identity, for
-    /// example `portrait` or `burst`.
+    /// example `portrait`, `burst` or `flash-fired` (see `SPEC-OPPO.md`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub mode_flags: Vec<String>,
     /// Bits of the mode tag that this version does not interpret, as hex.

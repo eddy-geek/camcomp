@@ -22,6 +22,9 @@ use std::sync::OnceLock;
 use std::time::Instant;
 
 use camcomp_core::cache;
+use camcomp_core::domain::MetadataReader;
+use camcomp_core::imageio::probe_dimensions;
+use camcomp_core::metadata::{identify_mode_with_dimensions, ExifMetadataReader};
 use camcomp_core::pipeline::{self, AnalysisOptions};
 use camcomp_core::schema::{
     AnalysisDocument, FocalCompatibility, FocalSource, PairReason, PairState, UngroupedReason,
@@ -138,6 +141,71 @@ fn labels_by_id(document: &AnalysisDocument) -> BTreeMap<&str, &str> {
 
 fn set_name(set: &Path) -> String {
     set.file_name().unwrap().to_string_lossy().to_string()
+}
+
+fn calibration_mode_from_filename(name: &str) -> &'static str {
+    if name.contains("Mode_Hi-Res") {
+        "hi-res"
+    } else if name.contains("Mode_Portrait") {
+        "portrait"
+    } else if name.contains("Mode_Night") {
+        "night"
+    } else if name.contains("Mode_Text") {
+        "text"
+    } else if name.contains("Mode_Master") {
+        "master"
+    } else {
+        "auto"
+    }
+}
+
+#[test]
+fn oppo_metadata_calibration_matches_the_renamed_mode_labels() {
+    let directory = repository_root().join("data").join("metadata-calibration");
+    if !directory.is_dir() {
+        eprintln!("no metadata calibration directory; skipping");
+        return;
+    }
+    let mut files: Vec<PathBuf> = std::fs::read_dir(&directory)
+        .expect("read metadata calibration directory")
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .filter(|path| {
+            matches!(
+                path.extension().and_then(|e| e.to_str()),
+                Some("jpg") | Some("heic")
+            )
+        })
+        .collect();
+    files.sort();
+
+    let reader = ExifMetadataReader;
+    assert_eq!(
+        files.len(),
+        32,
+        "calibration corpus changed; update this test"
+    );
+    for path in files {
+        let name = path.file_name().unwrap().to_string_lossy();
+        let bytes = std::fs::read(&path).expect("read calibration photo");
+        let raw = reader.read(&bytes);
+        let dimensions = probe_dimensions(&path, &bytes).expect("probe calibration dimensions");
+        let mode = identify_mode_with_dimensions(&raw, dimensions);
+        let base_label = mode
+            .label
+            .as_deref()
+            .unwrap_or("-")
+            .split("-x")
+            .next()
+            .unwrap();
+        assert_eq!(base_label, calibration_mode_from_filename(&name), "{name}");
+
+        let flash_fired = raw.flash.map(|value| value & 0x0001 != 0).unwrap_or(false);
+        assert_eq!(
+            mode.flags.iter().any(|flag| flag == "flash-fired"),
+            flash_fired,
+            "{name}"
+        );
+    }
 }
 
 /// A temporary directory removed on drop, even if the test panics.

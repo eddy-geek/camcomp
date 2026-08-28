@@ -4,8 +4,8 @@
   under two tolerances (§6.11), the strict tier was widened to `0.15` once
   `tstgrp5` was relabelled (§6.11), the session gap is 60 s and can be switched
   off for calibration (§6.12, §6.13), the digital-zoom focal policy is
-  implemented (§6.7), and the Oppo mode decoding is hardened against a
-  357-photo survey (§2.1). Measured: 12 of 13 labelled groups, zero false
+  implemented (§6.7), and the Oppo mode decoding is documented in
+  [`SPEC-OPPO.md`](SPEC-OPPO.md). Measured: 12 of 13 labelled groups, zero false
   positives, and the same numbers with session detection disabled. The per-
   session pair budget (§4.3 of `SPEC.md`) was removed: every candidate pair is
   now either visually analyzed or decided from metadata, so nothing is ever
@@ -100,73 +100,11 @@ Three deviations from the ADR §5 runtime baseline, all reducing the graph:
 
 ### 2.1 [Q10] — the shooting-mode tag
 
-**Answered from the reference sets, then hardened against a 357-photo survey.**
-The Oppo Find X9 Pro writes the mode into EXIF `UserComment` as
-`oplus_<integer>`. `exiftool` warns "Invalid EXIF text encoding for UserComment"
-because the 8-byte character-code prefix is malformed, so `metadata.rs` recovers
-the printable ASCII payload directly instead of trusting the declared encoding.
-
-The survey covers every `.heic` in `data/ferr-oppo`, `data/peakfinder` and
-`data/Photos-1-001 (1)`: three folders, three shooting days, **292 photos with an
-`oplus_` tag, 14 distinct codes**. Each bit is correlated against independent
-EXIF, so the decoding is measured rather than assumed:
-
-| mask | meaning | evidence | in the configuration ID |
-|---|---|---|---|
-| `0x0100` | Master mode | n = 44; median exposure **1/5 494 s against 1/689 s** for the plain mode, shortest 1/36 344 s against 1/7 841 s — which matches the user's own description of master as "shorter exposure, darker" | yes |
-| `0x2000` | high-resolution 50 MP mode | n = 74; of the 70 written by the camera itself, **every one is 8192 × 6144**, and **no 8192-wide photo lacks the bit**; digital zoom is always 1. The remaining 4 are export JPEGs the exporter downsized | yes |
-| `0x0020` | portrait-orientation capture | n = 96; **no photo with portrait pixel dimensions lacks the bit (0 of 196)**, and 79 of the 96 that carry it report portrait dimensions before the container's rotation transform | no |
-| `0x04000000` | burst frame | n = 11; **1:1 with the `_BURST` filename convention in both directions** | no |
-
-The 17 landscape photos that carry `0x0020` are the reason it is called
-"portrait-orientation capture" and not "portrait pixels": `exiftool` reports the
-coded dimensions and the HEIF container's `irot` is applied afterwards. Nothing
-rotates on this bit — `imageio.rs` uses the container transform (§2.2) — so the
-ambiguity costs nothing, but it is not evidence of a mode either.
-
-`0x0020` and `0x04000000` are deliberately **not** part of the configuration
-identity. Orientation and burst do not change the image pipeline, so splitting
-`auto` from `auto-in-portrait` would fragment the comparison for nothing. They are
-recorded as `modeFlags` instead.
-
-Labels use the phone's own vocabulary: `auto` (the plain mode, and by far the most
-common value at n = 106), `master`, `hi-res`. The earlier `photo` and `hd` were
-our invention and are gone.
-
-#### What is *not* decoded, and how that is handled
-
-With the flag bits masked off, the remainder is constant per writer, not per
-mode:
-
-| profile | n | seen on |
-|---|---:|---|
-| `0x20100000` | 280 | every camera-written HEIC, every mode combination underneath it |
-| `0x210300000` | 6 | files a Google Photos export re-encoded to JPEG (`.heic` extension, JPEG magic bytes, valid `Orientation` where the camera writes the invalid `0`) |
-| `0x310300000` | 4 | the same, and only on master shots |
-| `0x28100000` | 2 | **unaccounted for**; no distinguishing tag found against a plain `auto` photo |
-
-An unrecognized profile is reported, not absorbed: it becomes part of the label
-(`auto-x28100000`) and lands in `modeTagUnknownBits` with a note on the photo. The
-reasoning is asymmetric-risk. Folding unknown bits into `auto` would make Drop 4
-compare two different pipelines as one configuration, and nothing downstream could
-detect it; an odd configuration name is visible and correctable. Because a profile
-is constant for a writer, an unknown one marks a device's photos without splitting
-that device's own modes from each other.
-
-The two `0x28100000` photos are the open question left in the tag. Both are at
-2× zoom on the main lens, one landscape and one portrait, 4.7 MB against a typical
-2.8 MB, with an otherwise identical tag set. A dedicated shoot naming each mode
-would settle it — and would also confirm whether `0x210300000` is an export
-artefact or a genuine second writer.
-
-Google devices expose no mode tag. `Software` identifies the pipeline
-(`HDR+ 1.0.936816820zd`); the build number is dropped so a firmware update does
-not fork the configuration list. Mode label: `hdr-plus`.
-
-Where no mode is recognized the mode stays `None` rather than being invented — the
-`Labeled by PeakFinder` derivatives in `tstgrp2` are an example. A code that does
-not parse keeps its raw value and produces no label, because an unreadable tag is
-a bug report, not a mode-less photo.
+The complete OPPO Find X9 Pro metadata mapping, including the expanded calibration
+corpus, is maintained in [`SPEC-OPPO.md`](SPEC-OPPO.md). This document retains
+only the historical Drop 1 decision: read the malformed printable `oplus_<integer>`
+value from EXIF `UserComment`, preserve unknown values visibly, and never fold an
+unverified mode into a known configuration.
 
 ### 2.2 EXIF `Orientation = 0`
 
@@ -865,7 +803,7 @@ Run on macOS 26.6.2 / arm64, Rust 1.97.1, at Drop 1 wrap-up.
 | `warp` | 17 | identity warp exactness; invalid border after a shift; singular transform; warp round-trip; Sobel border invalidity; mask erosion removing the warp boundary; ZNCC surviving an exposure change, refusing a flat image, and refusing non-overlap |
 | `imageio` | 15 | all eight EXIF orientations dimensionally correct and sample-preserving; invalid orientation `0` treated as normal; magic bytes beating the extension; aspect-preserving analysis dimensions; the pixel guard; truncated input as an error not a panic |
 | `pipeline` | 15 | deterministic discovery skipping our own output; unsupported and missing inputs; photos with no timestamp reported not dropped; unreadable files still in the document; parameter validation before any work; cancellation; every stage emitting progress; no source photo modified; a `--force-pair` selector naming a photo (which never forms a candidate pair without a shared session), and one matching nothing not forcing everything |
-| `metadata` | 13 | UTC offsets both directions; sub-second scaling by digit position; the EXIF colon date form and a `:60` second; **all five observed Oppo `oplus_` mode codes**; the portrait bit read separately; Pixel HDR+ without its build number; an unrecognized comment yielding no mode rather than a guess |
+| `metadata` | 13 | UTC offsets both directions; sub-second scaling by digit position; the EXIF colon date form and a `:60` second; OPPO `oplus_` mode decoding and calibration coverage (see [`SPEC-OPPO.md`](SPEC-OPPO.md)); the portrait bit read separately; Pixel HDR+ without its build number; an unrecognized comment yielding no mode rather than a guess |
 | `matching` | 12 | descriptor distance symmetry; **equal distances breaking ties by lower index**; ambiguous and duplicate matches dropped rather than accepted; ratio-test boundary inclusivity; the mutual check; independence from descriptor order |
 | `schema` | 11 | document round-trip; unknown fields ignored; major-version rejection; every photo appearing exactly once; a group of one rejected; **a persisted inverse that does not invert rejected**; cache key sensitivity |
 | `features` | 8 | features found in texture; the cap honoured; a flat image yielding almost nothing; a tiny image reported as none; determinism; the cache extracting once per key and not poisoned by a failing loader |

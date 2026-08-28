@@ -21,8 +21,8 @@ use crate::imageio::{
     analysis_dimensions, load_analysis_image, oriented_dimensions, probe_dimensions, SourceFormat,
 };
 use crate::metadata::{
-    configuration_display_name, configuration_id, device_key, identify_mode, parse_exif_datetime,
-    with_offset, ExifMetadataReader,
+    configuration_display_name, configuration_id, device_key, identify_mode_with_dimensions,
+    parse_exif_datetime, with_offset, ExifMetadataReader,
 };
 use crate::metrics::{analyze_pair, PairInput};
 use crate::progress::{CancelToken, NoopProgress, ProgressSink, Reporter, Stage};
@@ -343,7 +343,7 @@ pub fn inspect(
     let mut configurations: BTreeMap<String, Configuration> = BTreeMap::new();
 
     for item in &staged {
-        let mode = identify_mode(&item.raw);
+        let mode = identify_mode_with_dimensions(&item.raw, item.original_dimensions);
         let device = device_key(&item.raw);
         let config_id = configuration_id(&device, mode.label.as_deref());
         let entry = configurations

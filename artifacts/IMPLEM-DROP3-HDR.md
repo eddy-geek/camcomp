@@ -57,7 +57,11 @@ cargo fmt --all -- --check
 
 The three-engine E2E coverage verifies exact bounded `206` ranges from generated local Blob URLs, actual `<img>` descendants, no actual `<canvas>` descendants, a real gain-map JPEG opening in Chromium and WebKit, the HTML viewer path, and the explicit SDR mode. Firefox’s real gain-map viewer flow is skipped pending M2; its SDR-only policy is covered by unit tests. Headless media-query values are not treated as physical display evidence.
 
-The initial `mise run check` reached the Rust release reference-set suite and exposed a metadata case in the user-added `test/tstgrp9` fixture: its three OPPO Pro XDR JPEGs carry `oplus_8593080352` (`0x200300020`), which is reported as `auto-x200300000` because the remaining `0x200300000` profile is not verified. Unknown mode bits remain intentionally visible in the classification and metadata note, but no longer make the reference-set invariant fail; the rest of the analysis and grouping process still runs. The real JPEG HDR corpus test covers the three gain-map files separately.
+The OPPO calibration corpus, including the distinction between capture mode and
+Pro XDR/HDR source markers, is documented in [`SPEC-OPPO.md`](SPEC-OPPO.md).
+Unknown mode bits remain visible in the classification and metadata note, while
+analysis and grouping continue; the Rust calibration invariant checks that
+behavior.
 
 ## 3. Manual gates still open
 
