@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { DeepReadonly, Group, IndexedAlbum, Photo } from "../contracts";
   import type { PhotoResolutionOptions, ResolvedPhotoSource, SourceSelection } from "../platform";
+  import type { DynamicRangeMode } from "../viewer";
   import GroupViewer from "./GroupViewer.svelte";
 
   export let album: IndexedAlbum;
@@ -16,6 +17,7 @@
   export let releaseSource: (source: ResolvedPhotoSource) => void;
 
   let groupIndex = 0;
+  let dynamicRangeMode: DynamicRangeMode = "automatic";
   $: groups = album.document.groups;
   $: selectedGroup = groups[groupIndex] as DeepReadonly<Group> | undefined;
   $: stats = album.document.stats;
@@ -90,7 +92,14 @@
         >
       </div>
       {#key selectedGroup.id}
-        <GroupViewer {album} group={selectedGroup} {resolveSource} {releaseSource} />
+        <GroupViewer
+          {album}
+          group={selectedGroup}
+          {resolveSource}
+          {releaseSource}
+          {dynamicRangeMode}
+          onDynamicRangeModeChange={(mode) => (dynamicRangeMode = mode)}
+        />
       {/key}
     {:else}
       <section class="empty">

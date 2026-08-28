@@ -14,6 +14,7 @@ import type {
   RuntimeCapabilities,
   SourceSelection,
 } from "./types";
+import { annotateResolvedPhotoSource } from "../sources/jpeg-hdr";
 import { PlatformOperationError } from "./types";
 
 interface NativeSelectionRecord {
@@ -185,15 +186,18 @@ export class TauriPlatformAdapter implements PlatformAdapter {
     const { invoke, convertFileSrc } = await import("@tauri-apps/api/core");
     const resolved = await invoke<NativeResolvedPhoto>("resolve_photo_source", { photo });
     signal?.throwIfAborted();
-    return Object.freeze({
+    const source = Object.freeze({
       photoId: resolved.photoId,
       sourceKind: resolved.sourceKind,
       displayUrl: convertFileSrc(resolved.displayPath),
-      originalPath: photo.path,
-      displayPath: photo.path,
+      originalPath: resolved.originalPath,
+      displayPath: resolved.displayPath,
       warnings: Object.freeze([...resolved.warnings]),
+      displayDynamicRange: { kind: "unverified", reason: "range-unsupported" } as const,
+      jpegGainMapRuntimeCapability: "unverified" as const,
       release: () => undefined,
     });
+    return annotateResolvedPhotoSource(source, "unverified", { signal });
   }
 
   releaseSelection(selection: SourceSelection): void {

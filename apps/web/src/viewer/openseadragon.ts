@@ -11,6 +11,7 @@ export class OpenSeadragonViewerAdapter implements ViewerAdapter {
   constructor(container: HTMLElement) {
     this.#viewer = OpenSeadragon({
       element: container,
+      drawer: "html",
       showNavigationControl: false,
       showNavigator: false,
       showSequenceControl: false,

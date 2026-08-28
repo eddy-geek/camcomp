@@ -5,6 +5,7 @@ import {
   type Photo,
 } from "../contracts";
 import { stripSingleDirectoryRoot } from "../sources/paths";
+import { annotateResolvedPhotoSource } from "../sources/jpeg-hdr";
 import { browserHeicWorkerAvailable } from "../sources/worker-heic";
 import {
   BrowserSourceResolver,
@@ -20,6 +21,7 @@ import type {
   RuntimeCapabilities,
   SourceSelection,
 } from "./types";
+import { detectJpegGainMapRuntimeCapability } from "../viewer/hdr";
 import { PlatformOperationError } from "./types";
 
 const DIRECTORY_DATABASE = "camcomp-directory-handles";
@@ -53,11 +55,16 @@ export function detectBrowserCapabilities(scope: Window = window): RuntimeCapabi
 export class BrowserPlatformAdapter implements PlatformAdapter {
   readonly capabilities: RuntimeCapabilities;
   readonly #scope: Window;
+  readonly #jpegGainMapRuntimeCapability: ReturnType<typeof detectJpegGainMapRuntimeCapability>;
   readonly #records = new Map<string, BrowserSelectionRecord>();
   #nextSelectionId = 1;
 
   constructor(scope: Window = window) {
     this.#scope = scope;
+    this.#jpegGainMapRuntimeCapability = detectJpegGainMapRuntimeCapability({
+      runtime: "browser",
+      userAgent: scope.navigator?.userAgent ?? "",
+    });
     this.capabilities = detectBrowserCapabilities(scope);
   }
 
@@ -227,7 +234,15 @@ export class BrowserPlatformAdapter implements PlatformAdapter {
     signal?: AbortSignal,
     options?: PhotoResolutionOptions,
   ): Promise<ResolvedPhotoSource> {
-    return this.#record(selection).resolver.resolvePhoto(photo, signal, options);
+    const source = await this.#record(selection).resolver.resolvePhoto(photo, signal, options);
+    try {
+      return await annotateResolvedPhotoSource(source, this.#jpegGainMapRuntimeCapability, {
+        signal,
+      });
+    } catch (error) {
+      source.release();
+      throw error;
+    }
   }
 
   releaseSelection(selection: SourceSelection): void {

@@ -193,6 +193,8 @@ function resolvedSource(
     width: dimensions.width,
     height: dimensions.height,
     warnings: Object.freeze([...warnings]),
+    displayDynamicRange: { kind: "unverified", reason: "not-jpeg" } as const,
+    jpegGainMapRuntimeCapability: "unverified",
     release: () => {
       if (released) return;
       released = true;

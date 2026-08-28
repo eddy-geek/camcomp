@@ -325,6 +325,7 @@ fn identify_oplus_mode(comment: &str, digits: &str) -> ModeIdentification {
         return out;
     };
 
+    let profile = code & !OPLUS_KNOWN_FLAGS;
     let mut parts: Vec<String> = Vec::new();
     if code & OPLUS_HIGH_RES != 0 {
         parts.push("hi-res".to_string());
@@ -344,7 +345,6 @@ fn identify_oplus_mode(comment: &str, digits: &str) -> ModeIdentification {
         out.flags.push("burst".to_string());
     }
 
-    let profile = code & !OPLUS_KNOWN_FLAGS;
     if !OPLUS_KNOWN_PROFILES.contains(&profile) {
         out.unknown_bits = Some(profile);
         parts.push(format!("x{profile:x}"));

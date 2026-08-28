@@ -204,7 +204,8 @@ test("renders the labeled tstgrp2 g3 comparison with real photos and alignment",
   ]);
 
   await expect(page.getByRole("heading", { name: "Comparison group" })).toBeVisible();
-  await expect(page.locator(".openseadragon-canvas")).toHaveCount(2);
+  await expect(page.locator(".photo-frame img")).toHaveCount(2);
+  await expect(page.locator(".photo-frame canvas")).toHaveCount(0);
   await expect(page.getByText("4096 × 3072")).toBeVisible();
   await expect(page.getByText("4080 × 3072")).toBeVisible();
   await expect(page.getByText("23 mm equivalent")).toBeVisible();

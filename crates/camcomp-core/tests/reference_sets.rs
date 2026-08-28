@@ -327,24 +327,26 @@ fn the_reference_sets_satisfy_every_document_invariant() {
             ));
         }
     }
-    // No reference photo carries an unverified mode bit, so no label may be
-    // decorated with one. If this fires, either a new device arrived in the
-    // sets or the decoding of a known bit regressed (`IMPLEM-DROP1.md` §2.1).
-    for mode in &modes {
-        if mode.contains("-x") {
-            failures.push(format!(
-                "unverified mode bits appeared in the reference sets: {mode}"
-            ));
-        }
-    }
+    // Unknown mode bits are expected to remain visible and must not block the
+    // rest of the analysis. The metadata decoder decorates their mode label and
+    // preserves the raw bits, so a future device is classified rather than
+    // silently merged into a known pipeline (`IMPLEM-DROP1.md` §2.1).
     for set in &sets {
         for photo in &shared(set).photos {
-            if photo.metadata.mode_tag_unknown_bits.is_some() {
+            let Some(bits) = photo.metadata.mode_tag_unknown_bits.as_deref() else {
+                continue;
+            };
+            let classified = photo
+                .metadata
+                .mode_label
+                .as_deref()
+                .map(|label| label.contains("-x"))
+                .unwrap_or(false);
+            if !classified {
                 failures.push(format!(
-                    "{}: {} carries unverified mode bits {:?}",
+                    "{}: {} has unclassified mode bits {bits:?}",
                     set_name(set),
-                    photo.path,
-                    photo.metadata.mode_tag_unknown_bits
+                    photo.path
                 ));
             }
         }

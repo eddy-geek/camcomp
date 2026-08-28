@@ -2,7 +2,14 @@
   import { onDestroy, onMount } from "svelte";
   import type { DeepReadonly, Photo } from "../contracts";
   import type { PhotoResolutionOptions, ResolvedPhotoSource } from "../platform";
-  import { NavigationController, type ViewerAdapter } from "../viewer";
+  import {
+    evaluateHdrPresentationStatus,
+    presentationStatusText,
+    NavigationController,
+    type DynamicRangeMode,
+    type HdrPresentationStatus,
+    type ViewerAdapter,
+  } from "../viewer";
 
   export let photo: DeepReadonly<Photo>;
   export let controller: NavigationController;
@@ -12,6 +19,13 @@
   ) => Promise<ResolvedPhotoSource>;
   export let releaseSource: (source: ResolvedPhotoSource) => void;
   export let alignmentStatus: string;
+  export let dynamicRangeMode: DynamicRangeMode = "automatic";
+  export let forcedSdrSupported = true;
+  interface PhotoStatusChange {
+    readonly photoId: string;
+    readonly status: HdrPresentationStatus;
+  }
+  export let onStatusChange: (change: PhotoStatusChange) => void = () => undefined;
 
   let viewerElement: HTMLDivElement;
   let adapter: ViewerAdapter | undefined;
@@ -21,10 +35,36 @@
   let loading = true;
   let disposed = false;
   let loadSequence = 0;
+  let displayHeadroom = false;
+  let mediaQuery: MediaQueryList | undefined;
+  let presentationStatus: HdrPresentationStatus | undefined;
+  let reportedStatus: HdrPresentationStatus | undefined;
 
   onMount(() => {
+    if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+      mediaQuery = window.matchMedia("(dynamic-range: high)");
+      displayHeadroom = mediaQuery.matches;
+      mediaQuery.addEventListener("change", handleDisplayHeadroomChange);
+    }
     void loadPhoto(false);
   });
+
+  $: presentationStatus = source
+    ? evaluateHdrPresentationStatus(
+        source.displayDynamicRange,
+        source.jpegGainMapRuntimeCapability,
+        dynamicRangeMode,
+        displayHeadroom,
+        forcedSdrSupported,
+      )
+    : undefined;
+  $: if (presentationStatus) notifyStatusChange(presentationStatus);
+
+  function notifyStatusChange(status: HdrPresentationStatus): void {
+    if (status === reportedStatus) return;
+    reportedStatus = status;
+    onStatusChange({ photoId: photo.id, status });
+  }
 
   async function loadPhoto(allowHighMemoryHeic: boolean): Promise<void> {
     const sequence = ++loadSequence;
@@ -70,7 +110,13 @@
     );
   }
 
+  function handleDisplayHeadroomChange(event: MediaQueryListEvent): void {
+    displayHeadroom = event.matches;
+  }
+
   onDestroy(() => {
+    mediaQuery?.removeEventListener("change", handleDisplayHeadroomChange);
+    mediaQuery = undefined;
     disposed = true;
     controller.remove(photo.id);
     adapter?.destroy();
@@ -98,6 +144,10 @@
   function formatNumber(value: number): string {
     return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value);
   }
+
+  function presentationStatusBadge(status: HdrPresentationStatus): string {
+    return status === "unverified-runtime" || status === "unverified-source" ? "HDR?" : "HDR";
+  }
 </script>
 
 <article class="photo-frame" aria-labelledby={`photo-${photo.id}`}>
@@ -108,6 +158,9 @@
     </div>
     {#if source?.sourceKind === "sidecar"}<strong class="warning">Sidecar</strong>{/if}
     {#if source?.sourceKind === "decoded"}<strong class="warning">Decoded copy</strong>{/if}
+    {#if presentationStatus && presentationStatus !== "sdr-source"}
+      <strong class="hdr-badge">{presentationStatusBadge(presentationStatus)}</strong>
+    {/if}
   </header>
   <div class="viewer" bind:this={viewerElement}>
     {#if loading}<p role="status">Loading full-detail photo…</p>{/if}
@@ -120,6 +173,11 @@
     {/if}
     {#if error}<p class="source-error" role="alert">Missing source: {error}</p>{/if}
   </div>
+  {#if presentationStatus && presentationStatusText(presentationStatus, source?.jpegGainMapRuntimeCapability)}
+    <p class="hdr-status" role="status">
+      {presentationStatusText(presentationStatus, source?.jpegGainMapRuntimeCapability)}
+    </p>
+  {/if}
   {#if source?.warnings.length}
     <ul class="warnings">
       {#each source.warnings as warning (warning)}<li>{warning}</li>{/each}
@@ -225,9 +283,16 @@
     margin: 0.15rem 0 0;
     font-size: 0.78rem;
   }
-  .warning {
+  .warning,
+  .hdr-badge {
     color: var(--orange);
     font-size: 0.72rem;
+  }
+  .hdr-status {
+    margin: 0;
+    padding: 0.45rem 0.8rem;
+    color: var(--orange);
+    font-size: 0.76rem;
   }
   .warnings {
     margin: 0;

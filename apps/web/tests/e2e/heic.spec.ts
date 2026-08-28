@@ -116,7 +116,8 @@ test("warns before decoding a real tstgrp3 HEIC with the high-memory worker", as
   await page.getByRole("button", { name: "Decode HEIC anyway" }).click();
   await expect(page.getByText("Decoded copy")).toBeVisible({ timeout: 90_000 });
   await expect(page.getByText(/high-memory HEIC worker enabled/i)).toBeVisible();
-  await expect(page.locator(".openseadragon-canvas")).toHaveCount(2);
+  await expect(page.locator(".photo-frame img")).toHaveCount(2);
+  await expect(page.locator(".photo-frame canvas")).toHaveCount(0);
   await expect(page.getByText("4096 × 3072")).toBeVisible();
   expect(workerRequests).toHaveLength(1);
 

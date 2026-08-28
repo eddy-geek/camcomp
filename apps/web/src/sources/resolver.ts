@@ -138,6 +138,8 @@ export class BrowserSourceResolver {
       originalPath: normalizeRelativePath(photo.path),
       displayPath: normalizeRelativePath(photo.path),
       warnings: Object.freeze(cheapFingerprintWarnings(photo, file)),
+      displayDynamicRange: { kind: "unverified", reason: "range-unsupported" } as const,
+      jpegGainMapRuntimeCapability: "unverified",
       release: () => this.#releaseObjectUrl(displayUrl),
     });
   }

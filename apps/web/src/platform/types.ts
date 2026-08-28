@@ -1,4 +1,6 @@
 import type { DeepReadonly, IndexedAlbum, Photo } from "../contracts";
+import type { DisplayDynamicRange } from "../sources/jpeg-hdr";
+import type { JpegGainMapRuntimeCapability } from "../viewer/hdr";
 
 export type RuntimeKind = "browser" | "tauri";
 export type FolderAccessKind =
@@ -45,6 +47,8 @@ export interface ResolvedPhotoSource {
   readonly width?: number;
   readonly height?: number;
   readonly warnings: readonly string[];
+  readonly displayDynamicRange: DisplayDynamicRange;
+  readonly jpegGainMapRuntimeCapability: JpegGainMapRuntimeCapability;
   release(): void;
 }
 

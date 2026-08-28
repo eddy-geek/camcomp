@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 import AlbumShell from "../src/components/AlbumShell.svelte";
+import GroupViewer from "../src/components/GroupViewer.svelte";
 import ImportPanel from "../src/components/ImportPanel.svelte";
 import PhotoFrame from "../src/components/PhotoFrame.svelte";
 import ProgressPanel from "../src/components/ProgressPanel.svelte";
@@ -87,6 +88,8 @@ describe("high-memory HEIC confirmation", () => {
       originalPath: "a.heic",
       displayPath: "a.heic (lossless worker decode)",
       warnings: ["High-memory HEIC worker enabled."],
+      displayDynamicRange: { kind: "sdr" },
+      jpegGainMapRuntimeCapability: "unverified",
       release: vi.fn(),
     };
     const resolveSource = vi
@@ -111,6 +114,87 @@ describe("high-memory HEIC confirmation", () => {
     );
     expect(await screen.findByText("Decoded copy")).toBeVisible();
     controller.destroy();
+  });
+});
+
+describe("HDR presentation", () => {
+  it("shows the computed status and removes the display listener on destroy", async () => {
+    const addEventListener = vi.fn();
+    const removeEventListener = vi.fn();
+    vi.stubGlobal("matchMedia", () => ({
+      matches: true,
+      addEventListener,
+      removeEventListener,
+    }));
+    const resolved: ResolvedPhotoSource = {
+      photoId: "photo-a",
+      sourceKind: "exact",
+      displayUrl: "blob:hdr",
+      originalPath: "a.jpg",
+      displayPath: "a.jpg",
+      warnings: [],
+      displayDynamicRange: {
+        kind: "jpeg-gain-map",
+        encoding: "ultra-hdr-v1",
+        validation: "trailing-jpeg-validated",
+      },
+      jpegGainMapRuntimeCapability: "native-supported",
+      release: vi.fn(),
+    };
+    const rendered = render(PhotoFrame, {
+      photo: validPhoto(),
+      controller: new NavigationController({ anchorPhotoId: "photo-a" }),
+      resolveSource: vi.fn().mockResolvedValue(resolved),
+      releaseSource: vi.fn(),
+      alignmentStatus: "Anchor",
+    });
+    expect(await rendered.findByText("HDR path active")).toBeVisible();
+    expect(addEventListener).toHaveBeenCalledOnce();
+    rendered.unmount();
+    expect(removeEventListener).toHaveBeenCalledOnce();
+    vi.unstubAllGlobals();
+  });
+
+  it("exposes the group-wide Compare in SDR control", async () => {
+    const document = validAnalysisDocument();
+    const second = structuredClone(validPhoto());
+    second.id = "photo-b";
+    second.path = "photos/b.jpg";
+    document.photos.push(second);
+    document.groups = [
+      {
+        id: "group-1",
+        anchorPhotoId: "photo-a",
+        photoIds: ["photo-a", "photo-b"],
+        evidence: {
+          compatibleMemberPairs: 1,
+          incompatibleMemberPairs: 0,
+          unverifiedMemberPairs: 0,
+        },
+      },
+    ];
+    document.ungrouped = [];
+    const album = normalizeAnalysisAlbum(document);
+    const modeChange = vi.fn();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    render(GroupViewer, {
+      album,
+      group: album.document.groups[0]!,
+      resolveSource: vi.fn(),
+      releaseSource: vi.fn(),
+      dynamicRangeMode: "automatic",
+      onDynamicRangeModeChange: modeChange,
+    });
+    await fireEvent.change(screen.getByLabelText("Dynamic range"), { target: { value: "sdr" } });
+    expect(modeChange).toHaveBeenCalledWith("sdr");
+    expect(screen.getByRole("option", { name: "Compare in SDR" })).toBeVisible();
+    vi.unstubAllGlobals();
   });
 });
 

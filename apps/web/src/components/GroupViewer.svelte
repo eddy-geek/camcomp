@@ -2,7 +2,15 @@
   import { onDestroy } from "svelte";
   import type { DeepReadonly, Group, IndexedAlbum, Photo } from "../contracts";
   import type { PhotoResolutionOptions, ResolvedPhotoSource } from "../platform";
-  import { chooseLayout, gridColumns, NavigationController, type NavigationMode } from "../viewer";
+  import {
+    chooseLayout,
+    dynamicRangeLimitValue,
+    gridColumns,
+    NavigationController,
+    supportsDynamicRangeLimit,
+    type DynamicRangeMode,
+    type NavigationMode,
+  } from "../viewer";
   import ComparisonSlider from "./ComparisonSlider.svelte";
   import PhotoFrame from "./PhotoFrame.svelte";
 
@@ -13,6 +21,8 @@
     options?: PhotoResolutionOptions,
   ) => Promise<ResolvedPhotoSource>;
   export let releaseSource: (source: ResolvedPhotoSource) => void;
+  export let dynamicRangeMode: DynamicRangeMode = "automatic";
+  export let onDynamicRangeModeChange: (mode: DynamicRangeMode) => void = () => undefined;
 
   let container: HTMLElement;
   let width = 1200;
@@ -20,6 +30,7 @@
   let resizeObserver: ResizeObserver | undefined;
   let mode: NavigationMode = "normalized";
   let presentation: "grid" | "slider" = "grid";
+  let forcedSdrSupported = supportsDynamicRangeLimit();
   let controller = new NavigationController(group);
 
   $: photos = group.photoIds.flatMap((id) => {
@@ -31,7 +42,6 @@
   $: alignmentStatuses = new Map(
     photos.map((photo) => [photo.id, alignmentStatus(photo.id, mode)]),
   );
-
   $: if (container) {
     resizeObserver?.disconnect();
     resizeObserver = new ResizeObserver(([entry]) => {
@@ -68,6 +78,18 @@
       <h2 id="viewer-heading">Comparison group</h2>
     </div>
     <div class="controls" aria-label="Viewer controls">
+      <label>
+        Dynamic range
+        <select
+          value={dynamicRangeMode}
+          aria-label="Dynamic range"
+          onchange={(event) =>
+            onDynamicRangeModeChange(event.currentTarget.value as DynamicRangeMode)}
+        >
+          <option value="automatic">Automatic / HDR when available</option>
+          <option value="sdr">Compare in SDR</option>
+        </select>
+      </label>
       <label>
         Navigation
         <select
@@ -111,7 +133,11 @@
     </p>
   {/if}
 
-  <div class="viewer-container" bind:this={container}>
+  <div
+    class="viewer-container"
+    bind:this={container}
+    style={`dynamic-range-limit: ${dynamicRangeLimitValue(dynamicRangeMode)};`}
+  >
     {#if presentation === "slider" && photos.length === 2}
       <ComparisonSlider
         {photos}
@@ -119,6 +145,8 @@
         {resolveSource}
         {releaseSource}
         alignmentStatus={(photoId) => alignmentStatuses.get(photoId) ?? "No alignment"}
+        {dynamicRangeMode}
+        {forcedSdrSupported}
       />
     {:else}
       <div
@@ -136,6 +164,8 @@
             {resolveSource}
             {releaseSource}
             alignmentStatus={alignmentStatuses.get(photo.id) ?? "No alignment"}
+            {dynamicRangeMode}
+            {forcedSdrSupported}
           />
         {/each}
       </div>

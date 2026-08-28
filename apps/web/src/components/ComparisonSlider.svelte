@@ -1,7 +1,14 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
+  import { SvelteMap } from "svelte/reactivity";
   import type { DeepReadonly, Photo } from "../contracts";
   import type { PhotoResolutionOptions, ResolvedPhotoSource } from "../platform";
-  import type { NavigationController } from "../viewer";
+  import {
+    presentationStatusText,
+    type DynamicRangeMode,
+    type HdrPresentationStatus,
+    type NavigationController,
+  } from "../viewer";
   import PhotoFrame from "./PhotoFrame.svelte";
 
   export let photos: readonly DeepReadonly<Photo>[];
@@ -12,8 +19,35 @@
   ) => Promise<ResolvedPhotoSource>;
   export let releaseSource: (source: ResolvedPhotoSource) => void;
   export let alignmentStatus: (photoId: string) => string;
+  export let dynamicRangeMode: DynamicRangeMode = "automatic";
+  export let forcedSdrSupported = true;
 
   let position = 50;
+  let statusByPhoto = new SvelteMap<string, HdrPresentationStatus>();
+  let photoIdsKey = "";
+  $: resetStatusMap(photos);
+  $: statusSummary = photos
+    .map((photo) => {
+      const status = statusByPhoto.get(photo.id);
+      const text =
+        status &&
+        (presentationStatusText(status) ?? (status === "sdr-source" ? "SDR source" : undefined));
+      return text ? `${photo.path.split("/").at(-1)}: ${text}` : undefined;
+    })
+    .filter((entry): entry is string => entry !== undefined);
+
+  function resetStatusMap(nextPhotos: readonly DeepReadonly<Photo>[]): void {
+    const nextPhotoIdsKey = nextPhotos.map((photo) => photo.id).join("\0");
+    if (nextPhotoIdsKey === photoIdsKey) return;
+    photoIdsKey = nextPhotoIdsKey;
+    statusByPhoto = new SvelteMap();
+  }
+
+  function handleStatusChange(change: { photoId: string; status: HdrPresentationStatus }): void {
+    statusByPhoto = new SvelteMap(statusByPhoto).set(change.photoId, change.status);
+  }
+
+  onDestroy(() => statusByPhoto.clear());
 </script>
 
 <div class="comparison">
@@ -24,6 +58,9 @@
       {resolveSource}
       {releaseSource}
       alignmentStatus={alignmentStatus(photos[0]!.id)}
+      {dynamicRangeMode}
+      {forcedSdrSupported}
+      onStatusChange={handleStatusChange}
     />
   </div>
   <div class="layer trailing" style={`clip-path: inset(0 0 0 ${position}%);`} aria-hidden="true">
@@ -33,8 +70,14 @@
       {resolveSource}
       {releaseSource}
       alignmentStatus={alignmentStatus(photos[1]!.id)}
+      {dynamicRangeMode}
+      {forcedSdrSupported}
+      onStatusChange={handleStatusChange}
     />
   </div>
+  {#if statusSummary.length}
+    <p class="comparison-status" role="status">{statusSummary.join(" · ")}</p>
+  {/if}
   <div class="divider" style={`left: ${position}%`}></div>
   <label>
     <span>Comparison divider: {position}%</span>
@@ -54,6 +97,19 @@
   }
   .trailing {
     pointer-events: none;
+  }
+  .comparison-status {
+    position: absolute;
+    z-index: 5;
+    top: 0.75rem;
+    right: 1rem;
+    left: 1rem;
+    margin: 0;
+    padding: 0.45rem 0.7rem;
+    border-radius: 0.4rem;
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    color: var(--orange);
+    font-size: 0.76rem;
   }
   .divider {
     position: absolute;
