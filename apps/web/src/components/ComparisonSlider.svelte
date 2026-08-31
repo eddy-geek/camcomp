@@ -76,10 +76,10 @@
     />
   </div>
   {#if statusSummary.length}
-    <p class="comparison-status" role="status">{statusSummary.join(" · ")}</p>
+    <p class="comparison-status slider-chrome" role="status">{statusSummary.join(" · ")}</p>
   {/if}
-  <div class="divider" style={`left: ${position}%`}></div>
-  <label>
+  <div class="divider slider-chrome" style={`left: ${position}%`}></div>
+  <label class="slider-chrome">
     <span>Comparison divider: {position}%</span>
     <input type="range" min="0" max="100" step="1" bind:value={position} />
   </label>
@@ -88,7 +88,21 @@
 <style>
   .comparison {
     position: relative;
-    min-height: 34rem;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+  }
+  .slider-chrome {
+    opacity: 1;
+    transition: opacity 160ms ease;
+  }
+  :global(.has-group:not(.chrome-visible)) .slider-chrome {
+    opacity: 0;
+    pointer-events: none;
+  }
+  :global(.has-group:not(.chrome-visible)) .comparison:focus-within .slider-chrome {
+    opacity: 1;
+    pointer-events: auto;
   }
   .layer,
   .layer :global(.photo-frame) {
@@ -141,5 +155,10 @@
   input {
     width: 100%;
     accent-color: var(--orange);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .slider-chrome {
+      transition: none;
+    }
   }
 </style>

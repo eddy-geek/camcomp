@@ -4,19 +4,16 @@ import { resolve } from "node:path";
 import type { AnalysisDocument } from "../../src/contracts";
 import { validAnalysisDocument, validPhoto } from "../fixtures";
 
-const tinyPng = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZlqkAAAAASUVORK5CYII=",
-  "base64",
-);
+const tinyPng = readFileSync(resolve(process.cwd(), "../desktop/src-tauri/icons/32x32.png"));
 
 function twoPhotoDocument(): AnalysisDocument {
   const document = validAnalysisDocument();
   document.photos[0]!.path = "a.jpg";
-  document.photos[0]!.dimensions = { original: [1, 1], oriented: [1, 1] };
+  document.photos[0]!.dimensions = { original: [32, 32], oriented: [32, 32] };
   const second = structuredClone(validPhoto());
   second.id = "photo-b";
   second.path = "b.jpg";
-  second.dimensions = { original: [1, 1], oriented: [1, 1] };
+  second.dimensions = { original: [32, 32], oriented: [32, 32] };
   second.configurationId = "configuration-2";
   document.configurations.push({
     id: "configuration-2",
@@ -157,7 +154,98 @@ test("two-photo groups preserve controls and expose an accessible comparison sli
   ]);
 
   await expect(page.getByRole("heading", { name: "Comparison group" })).toBeVisible();
-  await expect(page.getByText("1 × 1")).toHaveCount(2);
+  await expect(page.getByText("32 × 32")).toHaveCount(2);
+
+  const workspace = await page.locator(".viewer-shell").boundingBox();
+  const viewport = page.viewportSize();
+  expect(workspace).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(workspace!.x).toBe(0);
+  expect(workspace!.y).toBe(0);
+  expect(workspace!.width).toBe(viewport!.width);
+  expect(workspace!.height).toBe(viewport!.height);
+  const frames = await page.locator(".photo-frame").evaluateAll((elements) =>
+    elements.map((element) => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, right: rect.right };
+    }),
+  );
+  expect(frames[0]!.right).toBe(frames[1]!.left);
+
+  await expect(page.locator(".viewer-toolbar")).toHaveCSS("opacity", "0", { timeout: 3_000 });
+  await expect(page.locator(".viewer-toolbar")).toHaveCSS("pointer-events", "none");
+  const collapsedSidebar = await page.locator(".album-sidebar").boundingBox();
+  expect(collapsedSidebar).not.toBeNull();
+  expect(collapsedSidebar!.x + collapsedSidebar!.width).toBeLessThanOrEqual(12);
+  await page.mouse.move(2, viewport!.height / 2);
+  await expect(page.locator(".album-sidebar")).toHaveCSS("transform", "none");
+  await page.mouse.move(viewport!.width / 2, viewport!.height / 2);
+  await expect(page.locator(".viewer-toolbar")).toHaveCSS("opacity", "1");
+
+  await page.getByRole("button", { name: "100%" }).click();
+  await expect
+    .poll(() =>
+      page
+        .locator(".photo-frame img")
+        .first()
+        .evaluate((image) =>
+          Math.abs(
+            (image.getBoundingClientRect().width * window.devicePixelRatio) /
+              (image as HTMLImageElement).naturalWidth -
+              1,
+          ),
+        ),
+    )
+    .toBeLessThanOrEqual(2 / 32 + 0.001);
+  const scale100 = await page
+    .locator(".photo-frame img")
+    .evaluateAll((images) =>
+      images.map(
+        (image) =>
+          (image.getBoundingClientRect().width * window.devicePixelRatio) /
+          (image as HTMLImageElement).naturalWidth,
+      ),
+    );
+  expect(scale100).toHaveLength(2);
+  for (const scale of scale100) expect(Math.abs(scale - 1)).toBeLessThanOrEqual(2 / 32 + 0.001);
+
+  await page.getByRole("button", { name: "200%" }).click();
+  await expect
+    .poll(() =>
+      page
+        .locator(".photo-frame img")
+        .first()
+        .evaluate((image) =>
+          Math.abs(
+            (image.getBoundingClientRect().width * window.devicePixelRatio) /
+              (image as HTMLImageElement).naturalWidth -
+              2,
+          ),
+        ),
+    )
+    .toBeLessThanOrEqual(2 / 32 + 0.001);
+  const scale200 = await page
+    .locator(".photo-frame img")
+    .evaluateAll((images) =>
+      images.map(
+        (image) =>
+          (image.getBoundingClientRect().width * window.devicePixelRatio) /
+          (image as HTMLImageElement).naturalWidth,
+      ),
+    );
+  for (const scale of scale200) expect(Math.abs(scale - 2)).toBeLessThanOrEqual(2 / 32 + 0.001);
+  const stableWidths: number[] = [];
+  for (let sample = 0; sample < 3; sample += 1) {
+    stableWidths.push(
+      await page
+        .locator(".photo-frame img")
+        .first()
+        .evaluate((image) => image.getBoundingClientRect().width),
+    );
+    await page.waitForTimeout(200);
+  }
+  expect(new Set(stableWidths.map((width) => width.toFixed(3))).size).toBe(1);
+
   await page.getByRole("button", { name: "Comparison slider" }).click();
   const divider = page.getByRole("slider", { name: /comparison divider/i });
   await expect(divider).toBeVisible();

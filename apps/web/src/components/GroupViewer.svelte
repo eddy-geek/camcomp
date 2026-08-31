@@ -72,12 +72,12 @@
 </script>
 
 <section class="viewer-shell" aria-labelledby="viewer-heading">
-  <header class="toolbar">
+  <header class="toolbar viewer-toolbar">
     <div>
       <p class="eyebrow">{group.photoIds.length} photos</p>
       <h2 id="viewer-heading">Comparison group</h2>
     </div>
-    <div class="controls" aria-label="Viewer controls">
+    <div class="controls" role="toolbar" aria-label="Viewer controls">
       <label>
         Dynamic range
         <select
@@ -110,6 +110,12 @@
         </button>
       {/if}
       <button type="button" class="secondary" onclick={() => controller.fit()}>Fit all</button>
+      <button type="button" class="secondary" onclick={() => controller.zoomToPixelRatio(1)}
+        >100%</button
+      >
+      <button type="button" class="secondary" onclick={() => controller.zoomToPixelRatio(2)}
+        >200%</button
+      >
       <button
         type="button"
         class="secondary"
@@ -126,7 +132,7 @@
   </header>
 
   {#if mode === "aligned"}
-    <p class="mode-note">
+    <p class="mode-note viewer-note">
       Experimental until the real-landmark gate is recorded. Global homographies map centers through
       the anchor. Unsupported members fall back to normalized coordinates; no local correspondence
       refinement is applied.
@@ -175,15 +181,40 @@
 
 <style>
   .viewer-shell {
-    display: grid;
+    position: relative;
+    width: 100%;
+    height: 100%;
     min-width: 0;
-    gap: 0.75rem;
+    min-height: 0;
+    overflow: hidden;
   }
   .toolbar {
+    position: absolute;
+    z-index: 25;
+    top: 4.4rem;
+    right: 0.6rem;
+    left: 0.6rem;
     display: flex;
     align-items: end;
     justify-content: space-between;
     gap: 1rem;
+    padding: 0.5rem;
+    border-radius: 0.55rem;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    opacity: 1;
+    transition:
+      opacity 160ms ease,
+      transform 160ms ease;
+  }
+  :global(.has-group:not(.chrome-visible)) .toolbar {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-0.5rem);
+  }
+  :global(.has-group:not(.chrome-visible)) .toolbar:focus-within {
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
   }
   h2,
   .eyebrow {
@@ -213,17 +244,34 @@
     color: var(--text);
   }
   .mode-note {
+    position: absolute;
+    z-index: 24;
+    right: 0.6rem;
+    bottom: 0.6rem;
+    left: 0.6rem;
     margin: 0;
+    padding: 0.5rem 0.7rem;
+    border-radius: 0.45rem;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
     font-size: 0.78rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 160ms ease;
   }
-  .viewer-container {
+  :global(.chrome-visible) .mode-note {
+    opacity: 1;
+  }
+  .viewer-container,
+  .photo-grid {
+    width: 100%;
+    height: 100%;
     min-width: 0;
-    min-height: 34rem;
+    min-height: 0;
   }
   .photo-grid {
     display: grid;
-    min-height: 34rem;
-    gap: 0.65rem;
+    grid-auto-rows: minmax(0, 1fr);
+    gap: 0;
   }
   .columns {
     grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
@@ -235,13 +283,19 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .generic {
-    grid-template-columns: repeat(var(--grid-columns), minmax(18rem, 1fr));
-    overflow: auto;
+    grid-template-columns: repeat(var(--grid-columns), minmax(0, 1fr));
   }
   @media (max-width: 800px) {
     .toolbar {
+      top: 3.8rem;
       align-items: stretch;
       flex-direction: column;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .toolbar,
+    .mode-note {
+      transition: none;
     }
   }
 </style>

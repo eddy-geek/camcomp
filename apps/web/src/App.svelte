@@ -71,7 +71,7 @@
   <title>camcomp · local photo comparison</title>
 </svelte:head>
 
-<header class="app-header">
+<header class:comparison={state.phase === "ready"} class="app-header">
   <a
     href="./"
     aria-label="camcomp home"
@@ -90,7 +90,7 @@
 <div class="status sr-only" role="status" aria-live="polite">{state.phase}</div>
 
 <svelte:boundary>
-  <div class="app-content">
+  <div class:comparison={state.phase === "ready"} class="app-content">
     {#if state.phase === "idle" || state.phase === "acquiring-source"}
       <ImportPanel
         capabilities={platform.capabilities}
@@ -158,7 +158,7 @@
   {/snippet}
 </svelte:boundary>
 
-<footer>
+<footer class:comparison={state.phase === "ready"}>
   Source photos are read-only. Browser mode never writes analysis; desktop writes only
   <code>camcomp.json</code> and lossless derived display files in application cache.
   <a href="./third-party-notices.txt" target="_blank" rel="license">Third-party notices</a>
@@ -173,6 +173,23 @@
     padding: 0 1.25rem;
     border-bottom: 1px solid var(--border);
     background: color-mix(in srgb, var(--surface) 94%, transparent);
+  }
+  .app-header.comparison {
+    position: fixed;
+    z-index: 40;
+    top: 0;
+    right: 0;
+    left: 0;
+    opacity: 0;
+    transform: translateY(-0.5rem);
+    transition:
+      opacity 160ms ease,
+      transform 160ms ease;
+  }
+  .app-header.comparison:hover,
+  .app-header.comparison:focus-within {
+    opacity: 1;
+    transform: none;
   }
   .app-header a {
     display: flex;
@@ -207,6 +224,13 @@
     min-height: calc(100vh - 7rem);
     padding: 1rem;
   }
+  .app-content.comparison {
+    position: fixed;
+    inset: 0;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+  }
   .working {
     max-width: 38rem;
     margin: 5rem auto;
@@ -215,10 +239,18 @@
     border-radius: 0.8rem;
     background: var(--surface);
   }
+  footer.comparison {
+    display: none;
+  }
   footer {
     padding: 1rem 1.25rem;
     border-top: 1px solid var(--border);
     color: var(--muted);
     font-size: 0.75rem;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .app-header.comparison {
+      transition: none;
+    }
   }
 </style>

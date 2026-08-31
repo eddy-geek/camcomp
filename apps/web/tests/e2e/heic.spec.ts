@@ -121,6 +121,7 @@ test("warns before decoding a real tstgrp3 HEIC with the high-memory worker", as
   await expect(page.getByText("4096 × 3072")).toBeVisible();
   expect(workerRequests).toHaveLength(1);
 
+  await page.mouse.move(2, page.viewportSize()!.height / 2);
   await page.getByRole("button", { name: "Open another set" }).click();
   await expect(page.getByRole("heading", { name: "Open a comparison set" })).toBeVisible();
 });

@@ -10,6 +10,8 @@ import type {
 } from "./types";
 
 const PROJECTIVE_EPSILON = 1e-12;
+const MIN_PIXEL_RATIO = 1e-4;
+const MAX_PIXEL_RATIO = 1e4;
 
 interface ReadonlyAlignment {
   readonly photoId: string;
@@ -114,7 +116,7 @@ export class NavigationController {
     mode: "normalized",
     leaderPhotoId: null,
     center: [0.5, 0.5],
-    span: [1, 1],
+    scale: { kind: "normalized", span: [1, 1] },
     sequence: 0,
   };
   #frame: number | null = null;
@@ -140,10 +142,11 @@ export class NavigationController {
       photoId,
       adapter.onInteraction((interaction) => this.#interacted(photoId, interaction)),
     );
-    if (this.#state.leaderPhotoId) {
+    const leader = this.#state.leaderPhotoId ?? this.#adapters.keys().next().value;
+    if (leader && this.#state.sequence > 0) {
       const mapper = this.#state.mode === "aligned" ? this.#alignedMapper : this.#normalizedMapper;
-      const mapped = mapper.map(this.#state.leaderPhotoId, photoId, this.#state.center);
-      adapter.applyViewport(mapped.point, this.#state.span);
+      const mapped = mapper.map(leader, photoId, this.#state.center);
+      this.#applyScale(adapter, mapped.point);
     }
   }
 
@@ -152,6 +155,9 @@ export class NavigationController {
     this.#subscriptions.delete(photoId);
     this.#adapters.delete(photoId);
     this.#fallbacks.delete(photoId);
+    if (this.#state.leaderPhotoId === photoId) {
+      this.#state = { ...this.#state, leaderPhotoId: null };
+    }
   }
 
   setMode(mode: NavigationMode): void {
@@ -164,7 +170,21 @@ export class NavigationController {
     this.#state = {
       ...this.#state,
       center: [0.5, 0.5],
-      span: [1, 1],
+      scale: { kind: "normalized", span: [1, 1] },
+      sequence: this.#state.sequence + 1,
+    };
+    this.#applyLeader = true;
+    this.#schedule();
+  }
+
+  zoomToPixelRatio(screenPixelsPerImagePixel: number): void {
+    if (!Number.isFinite(screenPixelsPerImagePixel)) return;
+    this.#state = {
+      ...this.#state,
+      scale: {
+        kind: "pixel",
+        screenPixelsPerImagePixel: clampPixelRatio(screenPixelsPerImagePixel),
+      },
       sequence: this.#state.sequence + 1,
     };
     this.#applyLeader = true;
@@ -186,11 +206,18 @@ export class NavigationController {
   #interacted(photoId: string, interaction: ViewerInteraction): void {
     if (this.#applying) return;
     this.#applyLeader = false;
+    const scale =
+      this.#state.scale.kind === "pixel" && Number.isFinite(interaction.screenPixelsPerImagePixel)
+        ? {
+            kind: "pixel" as const,
+            screenPixelsPerImagePixel: clampPixelRatio(interaction.screenPixelsPerImagePixel),
+          }
+        : { kind: "normalized" as const, span: clampSpan(interaction.span) };
     this.#state = {
       ...this.#state,
       leaderPhotoId: photoId,
       center: interaction.center,
-      span: interaction.span,
+      scale,
       sequence: this.#state.sequence + 1,
     };
     this.#schedule();
@@ -215,7 +242,7 @@ export class NavigationController {
         if (photoId === leader && !this.#applyLeader) continue;
         const mapped = mapper.map(leader, photoId, this.#state.center);
         if (mapped.fallback && mapped.reason) this.#fallbacks.set(photoId, mapped.reason);
-        adapter.applyViewport(mapped.point, this.#state.span);
+        this.#applyScale(adapter, mapped.point);
       }
     } finally {
       this.#applyLeader = false;
@@ -224,8 +251,20 @@ export class NavigationController {
       });
     }
   }
+
+  #applyScale(adapter: ViewerAdapter, center: Point): void {
+    if (this.#state.scale.kind === "pixel") {
+      adapter.applyPixelRatio(center, this.#state.scale.screenPixelsPerImagePixel);
+    } else {
+      adapter.applyViewport(center, this.#state.scale.span);
+    }
+  }
 }
 
 export function clampSpan(span: Span): Span {
   return [Math.min(4, Math.max(1e-4, span[0])), Math.min(4, Math.max(1e-4, span[1]))];
+}
+
+export function clampPixelRatio(ratio: number): number {
+  return Math.min(MAX_PIXEL_RATIO, Math.max(MIN_PIXEL_RATIO, ratio));
 }

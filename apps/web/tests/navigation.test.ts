@@ -70,6 +70,7 @@ class FakeAdapter implements ViewerAdapter {
   open = vi.fn(async () => undefined);
   viewport = vi.fn(() => null);
   applyViewport = this.applied;
+  applyPixelRatio = vi.fn();
   fit = vi.fn();
   zoomBy = vi.fn();
   onInteraction(handler: (interaction: ViewerInteraction) => void): () => void {
@@ -91,7 +92,11 @@ describe("navigation controller", () => {
     const peer = new FakeAdapter();
     controller.add("a", leader);
     controller.add("b", peer);
-    leader.interact({ center: [0.3, 0.4], span: [0.5, 0.6] });
+    leader.interact({
+      center: [0.3, 0.4],
+      span: [0.5, 0.6],
+      screenPixelsPerImagePixel: 0.5,
+    });
     await new Promise((resolve) => requestAnimationFrame(resolve));
     expect(leader.applied).not.toHaveBeenCalled();
     expect(peer.applied).toHaveBeenCalledTimes(1);
@@ -105,7 +110,11 @@ describe("navigation controller", () => {
     const peer = new FakeAdapter();
     controller.add("a", leader);
     controller.add("b", peer);
-    leader.interact({ center: [0.25, 0.75], span: [0.4, 0.6] });
+    leader.interact({
+      center: [0.25, 0.75],
+      span: [0.4, 0.6],
+      screenPixelsPerImagePixel: 0.5,
+    });
     await new Promise((resolve) => requestAnimationFrame(resolve));
 
     controller.remove("b");
@@ -117,6 +126,77 @@ describe("navigation controller", () => {
     await new Promise((resolve) => requestAnimationFrame(resolve));
     expect(leader.applied).toHaveBeenCalledWith([0.5, 0.5], [1, 1]);
     expect(remountedPeer.applied).toHaveBeenLastCalledWith([0.5, 0.5], [1, 1]);
+    controller.destroy();
+  });
+
+  it("clears a removed leader before synchronizing remaining viewers", async () => {
+    const controller = new NavigationController(group);
+    const leader = new FakeAdapter();
+    const peer = new FakeAdapter();
+    controller.add("a", leader);
+    controller.add("b", peer);
+    leader.interact({
+      center: [0.25, 0.75],
+      span: [0.4, 0.6],
+      screenPixelsPerImagePixel: 0.5,
+    });
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    controller.remove("a");
+    expect(controller.state.leaderPhotoId).toBeNull();
+    controller.zoomToPixelRatio(1);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(peer.applyPixelRatio).toHaveBeenLastCalledWith([0.25, 0.75], 1);
+    controller.destroy();
+  });
+
+  it("preserves the center and applies exact pixel ratios across remounts", async () => {
+    const controller = new NavigationController(group);
+    const leader = new FakeAdapter();
+    const peer = new FakeAdapter();
+    controller.add("a", leader);
+    controller.add("b", peer);
+    leader.interact({
+      center: [0.25, 0.75],
+      span: [0.4, 0.6],
+      screenPixelsPerImagePixel: 0.5,
+    });
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    controller.zoomToPixelRatio(1);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(controller.state.center).toEqual([0.25, 0.75]);
+    expect(leader.applyPixelRatio).toHaveBeenLastCalledWith([0.25, 0.75], 1);
+    expect(peer.applyPixelRatio).toHaveBeenLastCalledWith([0.25, 0.75], 1);
+
+    controller.remove("b");
+    const remountedPeer = new FakeAdapter();
+    controller.add("b", remountedPeer);
+    expect(remountedPeer.applyPixelRatio).toHaveBeenCalledWith([0.25, 0.75], 1);
+    controller.destroy();
+  });
+
+  it("keeps pixel mode while synchronizing a user zoom", async () => {
+    const controller = new NavigationController(group);
+    const leader = new FakeAdapter();
+    const peer = new FakeAdapter();
+    controller.add("a", leader);
+    controller.add("b", peer);
+    controller.zoomToPixelRatio(2);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    leader.interact({
+      center: [0.4, 0.6],
+      span: [0.2, 0.3],
+      screenPixelsPerImagePixel: 2.5,
+    });
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(peer.applyPixelRatio).toHaveBeenLastCalledWith([0.4, 0.6], 2.5);
+    expect(controller.state.scale).toEqual({
+      kind: "pixel",
+      screenPixelsPerImagePixel: 2.5,
+    });
     controller.destroy();
   });
 });

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy, onMount } from "svelte";
   import type { DeepReadonly, Group, IndexedAlbum, Photo } from "../contracts";
   import type { PhotoResolutionOptions, ResolvedPhotoSource, SourceSelection } from "../platform";
   import type { DynamicRangeMode } from "../viewer";
@@ -18,13 +19,32 @@
 
   let groupIndex = 0;
   let dynamicRangeMode: DynamicRangeMode = "automatic";
+  let chromeVisible = true;
+  let chromeTimer: ReturnType<typeof setTimeout> | undefined;
   $: groups = album.document.groups;
   $: selectedGroup = groups[groupIndex] as DeepReadonly<Group> | undefined;
   $: stats = album.document.stats;
+
+  onMount(() => scheduleChromeHide());
+  onDestroy(() => clearTimeout(chromeTimer));
+
+  function revealChrome(): void {
+    chromeVisible = true;
+    scheduleChromeHide();
+  }
+
+  function scheduleChromeHide(): void {
+    clearTimeout(chromeTimer);
+    chromeTimer = setTimeout(() => (chromeVisible = false), 1400);
+  }
 </script>
 
-<div class="album-shell">
-  <aside>
+<div
+  class:chrome-visible={chromeVisible}
+  class:has-group={selectedGroup !== undefined}
+  class="album-shell"
+>
+  <aside class="album-sidebar">
     <div class="album-title">
       <p class="eyebrow">{selection.label}</p>
       <h2>Analysis result</h2>
@@ -74,9 +94,9 @@
     <button type="button" class="secondary full" onclick={onReset}>Open another set</button>
   </aside>
 
-  <main>
+  <main onmousemove={revealChrome} onpointerdown={revealChrome}>
     {#if selectedGroup}
-      <div class="group-nav">
+      <div class="group-nav chrome-overlay">
         <button
           type="button"
           class="secondary"
@@ -112,21 +132,44 @@
 
 <style>
   .album-shell {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: #050708;
+  }
+  .album-shell:not(.has-group) {
     display: grid;
-    min-height: calc(100vh - 4rem);
     grid-template-columns: minmax(15rem, 19rem) minmax(0, 1fr);
     gap: 1rem;
+    padding: 1rem;
   }
   aside {
     display: flex;
-    max-height: calc(100vh - 5rem);
     flex-direction: column;
     gap: 0.75rem;
     overflow: auto;
     padding: 1rem;
-    border: 1px solid var(--border);
-    border-radius: 0.75rem;
-    background: var(--surface);
+    border-right: 1px solid var(--border);
+    background: color-mix(in srgb, var(--surface) 97%, transparent);
+  }
+  .has-group aside {
+    position: absolute;
+    z-index: 35;
+    inset: 0 auto 0 0;
+    width: min(19rem, calc(100vw - 2rem));
+    opacity: 0.35;
+    transform: translateX(calc(-100% + 0.7rem));
+    transition:
+      opacity 160ms ease,
+      transform 160ms ease;
+  }
+  .has-group aside:hover,
+  .has-group aside:focus-within {
+    opacity: 1;
+    transform: none;
   }
   .album-title h2,
   .album-title p {
@@ -171,14 +214,37 @@
     width: 100%;
   }
   main {
+    width: 100%;
+    height: 100%;
     min-width: 0;
+    min-height: 0;
   }
   .group-nav {
+    position: absolute;
+    z-index: 45;
+    top: 0.6rem;
+    left: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.75rem;
-    margin-bottom: 0.75rem;
+    padding: 0.35rem;
+    border-radius: 0.55rem;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    opacity: 0;
+    transform: translate(-50%, -0.5rem);
+    transition:
+      opacity 160ms ease,
+      transform 160ms ease;
+  }
+  .has-group:not(.chrome-visible) .group-nav {
+    pointer-events: none;
+  }
+  .chrome-visible .group-nav,
+  .group-nav:focus-within {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(-50%);
   }
   .empty {
     padding: 2rem;
@@ -186,12 +252,10 @@
     border-radius: 0.75rem;
     background: var(--surface);
   }
-  @media (max-width: 900px) {
-    .album-shell {
-      grid-template-columns: 1fr;
-    }
-    aside {
-      max-height: none;
+  @media (prefers-reduced-motion: reduce) {
+    .has-group aside,
+    .group-nav {
+      transition: none;
     }
   }
 </style>

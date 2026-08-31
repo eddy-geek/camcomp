@@ -15,6 +15,7 @@ vi.mock("../src/viewer/openseadragon", () => ({
     open = vi.fn(async () => undefined);
     viewport = vi.fn(() => null);
     applyViewport = vi.fn();
+    applyPixelRatio = vi.fn();
     fit = vi.fn();
     zoomBy = vi.fn();
     onInteraction = vi.fn(() => () => undefined);
@@ -176,6 +177,7 @@ describe("HDR presentation", () => {
     document.ungrouped = [];
     const album = normalizeAnalysisAlbum(document);
     const modeChange = vi.fn();
+    const pixelZoom = vi.spyOn(NavigationController.prototype, "zoomToPixelRatio");
     vi.stubGlobal(
       "ResizeObserver",
       class {
@@ -194,6 +196,11 @@ describe("HDR presentation", () => {
     await fireEvent.change(screen.getByLabelText("Dynamic range"), { target: { value: "sdr" } });
     expect(modeChange).toHaveBeenCalledWith("sdr");
     expect(screen.getByRole("option", { name: "Compare in SDR" })).toBeVisible();
+    await fireEvent.click(screen.getByRole("button", { name: "100%" }));
+    await fireEvent.click(screen.getByRole("button", { name: "200%" }));
+    expect(pixelZoom).toHaveBeenNthCalledWith(1, 1);
+    expect(pixelZoom).toHaveBeenNthCalledWith(2, 2);
+    pixelZoom.mockRestore();
     vi.unstubAllGlobals();
   });
 });

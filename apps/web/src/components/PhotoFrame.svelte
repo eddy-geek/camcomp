@@ -151,7 +151,7 @@
 </script>
 
 <article class="photo-frame" aria-labelledby={`photo-${photo.id}`}>
-  <header>
+  <header class="photo-chrome">
     <div>
       <h3 id={`photo-${photo.id}`}>{photo.path.split("/").at(-1)}</h3>
       <span>{alignmentStatus}</span>
@@ -173,51 +173,69 @@
     {/if}
     {#if error}<p class="source-error" role="alert">Missing source: {error}</p>{/if}
   </div>
-  {#if presentationStatus && presentationStatusText(presentationStatus, source?.jpegGainMapRuntimeCapability)}
-    <p class="hdr-status" role="status">
-      {presentationStatusText(presentationStatus, source?.jpegGainMapRuntimeCapability)}
-    </p>
-  {/if}
-  {#if source?.warnings.length}
-    <ul class="warnings">
-      {#each source.warnings as warning (warning)}<li>{warning}</li>{/each}
-    </ul>
-  {/if}
-  <dl>
-    <div>
-      <dt>Focal length</dt>
-      <dd>{focalLabel()}</dd>
-    </div>
-    <div>
-      <dt>Resolution</dt>
-      <dd>{photo.dimensions.oriented[0]} × {photo.dimensions.oriented[1]}</dd>
-    </div>
-    <div>
-      <dt>Camera</dt>
-      <dd>{cameraLabel()}</dd>
-    </div>
-  </dl>
+  <div class="photo-details photo-chrome">
+    {#if presentationStatus && presentationStatusText(presentationStatus, source?.jpegGainMapRuntimeCapability)}
+      <p class="hdr-status" role="status">
+        {presentationStatusText(presentationStatus, source?.jpegGainMapRuntimeCapability)}
+      </p>
+    {/if}
+    {#if source?.warnings.length}
+      <ul class="warnings">
+        {#each source.warnings as warning (warning)}<li>{warning}</li>{/each}
+      </ul>
+    {/if}
+    <dl>
+      <div>
+        <dt>Focal length</dt>
+        <dd>{focalLabel()}</dd>
+      </div>
+      <div>
+        <dt>Resolution</dt>
+        <dd>{photo.dimensions.oriented[0]} × {photo.dimensions.oriented[1]}</dd>
+      </div>
+      <div>
+        <dt>Camera</dt>
+        <dd>{cameraLabel()}</dd>
+      </div>
+    </dl>
+  </div>
 </article>
 
 <style>
   .photo-frame {
-    display: grid;
+    position: relative;
+    width: 100%;
+    height: 100%;
     min-width: 0;
-    min-height: 22rem;
-    grid-template-rows: auto minmax(14rem, 1fr) auto auto;
+    min-height: 0;
     overflow: hidden;
-    border: 1px solid var(--border);
-    border-radius: 0.65rem;
-    background: #0b1015;
+    background: #050708;
   }
   header {
+    position: absolute;
+    z-index: 4;
+    top: 0;
+    right: 0;
+    left: 0;
     display: flex;
     min-width: 0;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
     padding: 0.65rem 0.8rem;
-    background: var(--surface-raised);
+    background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
+  }
+  .photo-chrome {
+    opacity: 1;
+    transition: opacity 160ms ease;
+  }
+  :global(.has-group:not(.chrome-visible)) .photo-chrome {
+    opacity: 0;
+    pointer-events: none;
+  }
+  :global(.has-group:not(.chrome-visible)) .photo-frame:focus-within .photo-chrome {
+    opacity: 1;
+    pointer-events: auto;
   }
   h3 {
     max-width: 22rem;
@@ -232,8 +250,10 @@
     font-size: 0.72rem;
   }
   .viewer {
-    position: relative;
-    min-height: 14rem;
+    position: absolute;
+    inset: 0;
+    min-width: 0;
+    min-height: 0;
     background: #050708;
   }
   .viewer > p {
@@ -266,6 +286,16 @@
   .high-memory-warning span {
     color: var(--muted);
     font-size: 0.78rem;
+  }
+  .photo-details {
+    position: absolute;
+    z-index: 4;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    max-height: 50%;
+    overflow: auto;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
   }
   dl {
     display: grid;
@@ -303,6 +333,11 @@
   @media (max-width: 650px) {
     dl {
       grid-template-columns: 1fr;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .photo-chrome {
+      transition: none;
     }
   }
 </style>
