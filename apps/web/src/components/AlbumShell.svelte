@@ -17,13 +17,71 @@
   ) => Promise<ResolvedPhotoSource>;
   export let releaseSource: (source: ResolvedPhotoSource) => void;
 
+  interface GroupEntry {
+    readonly group: DeepReadonly<Group>;
+    readonly capturedAt?: Date;
+    readonly dayKey: string;
+  }
+
+  const dateFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: "full" });
+  const dayKeyFormatter = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const timeFormatter = new Intl.DateTimeFormat(undefined, { timeStyle: "short" });
+
   let groupIndex = 0;
   let dynamicRangeMode: DynamicRangeMode = "automatic";
   let chromeVisible = true;
   let chromeTimer: ReturnType<typeof setTimeout> | undefined;
-  $: groups = album.document.groups;
+  $: groupEntries = sortedGroupEntries(album);
+  $: groups = groupEntries.map((entry) => entry.group);
   $: selectedGroup = groups[groupIndex] as DeepReadonly<Group> | undefined;
   $: stats = album.document.stats;
+
+  function sortedGroupEntries(currentAlbum: IndexedAlbum): GroupEntry[] {
+    return currentAlbum.document.groups
+      .map((group, originalIndex) => ({
+        group,
+        originalIndex,
+        capturedAt: groupCaptureDate(group, currentAlbum),
+      }))
+      .sort((left, right) => {
+        if (!left.capturedAt)
+          return right.capturedAt ? 1 : left.originalIndex - right.originalIndex;
+        if (!right.capturedAt) return -1;
+        return (
+          left.capturedAt.getTime() - right.capturedAt.getTime() ||
+          left.originalIndex - right.originalIndex
+        );
+      })
+      .map(({ group, capturedAt }) => ({
+        group,
+        capturedAt,
+        dayKey: capturedAt ? dayKeyFormatter.format(capturedAt) : "missing",
+      }));
+  }
+
+  function groupCaptureDate(
+    group: DeepReadonly<Group>,
+    currentAlbum: IndexedAlbum,
+  ): Date | undefined {
+    const timestamps = group.photoIds.flatMap((photoId) => {
+      const metadata = currentAlbum.photosById.get(photoId)?.metadata;
+      for (const value of [metadata?.correctedAt, metadata?.capturedAt]) {
+        if (!value) continue;
+        const date = new Date(value);
+        if (!Number.isNaN(date.getTime())) return [date];
+      }
+      return [];
+    });
+    return timestamps.reduce<Date | undefined>(
+      (earliest, timestamp) =>
+        !earliest || timestamp.getTime() < earliest.getTime() ? timestamp : earliest,
+      undefined,
+    );
+  }
 
   onMount(() => scheduleChromeHide());
   onDestroy(() => clearTimeout(chromeTimer));
@@ -57,7 +115,12 @@
       {/if}
     </div>
     <nav aria-label="Comparison groups">
-      {#each groups as group, index (group.id)}
+      {#each groupEntries as entry, index (entry.group.id)}
+        {#if index === 0 || entry.dayKey !== groupEntries[index - 1]?.dayKey}
+          <h3 class="group-day">
+            {entry.capturedAt ? dateFormatter.format(entry.capturedAt) : "Date unavailable"}
+          </h3>
+        {/if}
         <button
           type="button"
           class:active={index === groupIndex}
@@ -66,8 +129,15 @@
           onclick={() => (groupIndex = index)}
         >
           <strong>Group {index + 1}</strong>
-          <span>{group.photoIds.length} photos</span>
-          {#if group.flags?.length}<small>{group.flags.join(" · ")}</small>{/if}
+          <span>{entry.group.photoIds.length} photos</span>
+          {#if entry.group.flags?.length}<small>{entry.group.flags.join(" · ")}</small>{/if}
+          {#if entry.capturedAt}
+            <time datetime={entry.capturedAt.toISOString()}
+              >{timeFormatter.format(entry.capturedAt)}</time
+            >
+          {:else}
+            <time>Time unavailable</time>
+          {/if}
         </button>
       {/each}
     </nav>
@@ -184,6 +254,20 @@
     display: grid;
     gap: 0.4rem;
   }
+  .group-day {
+    margin: 0.55rem 0 0;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .group-day:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+  }
   .group-button {
     display: grid;
     gap: 0.1rem;
@@ -199,10 +283,18 @@
   }
   .group-button span,
   .group-button small,
+  .group-button time,
   details span,
   details small {
     display: block;
     color: var(--muted);
+  }
+  .group-button time {
+    margin-top: 0.25rem;
+    padding-top: 0.35rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.78rem;
+    font-weight: 600;
   }
   details ul {
     display: grid;

@@ -150,6 +150,10 @@ describe("HDR presentation", () => {
       alignmentStatus: "Anchor",
     });
     expect(await rendered.findByText("HDR path active")).toBeVisible();
+    const details = rendered.getByRole("heading", { name: "a.jpg" }).closest(".photo-details");
+    expect(details).not.toBeNull();
+    expect(details).toHaveTextContent("Anchor");
+    expect(details).toHaveTextContent("Focal length");
     expect(addEventListener).toHaveBeenCalledOnce();
     rendered.unmount();
     expect(removeEventListener).toHaveBeenCalledOnce();
@@ -220,5 +224,67 @@ describe("album result", () => {
     expect(screen.getByText("photos/a.jpg")).toBeVisible();
     expect(screen.getByText("no-session-peer")).toBeVisible();
     expect(screen.getByRole("heading", { name: "No comparison groups" })).toBeVisible();
+  });
+
+  it("sorts groups by capture time and separates capture days", () => {
+    const document = validAnalysisDocument();
+    const groupFixtures = [
+      { id: "next", correctedAt: "2026-08-23T09:00:00Z" },
+      { id: "missing", correctedAt: undefined },
+      { id: "late", correctedAt: "2026-08-22T14:00:00Z" },
+      { id: "early", correctedAt: "2026-08-22T10:00:00Z" },
+    ];
+    document.photos = groupFixtures.flatMap(({ id, correctedAt }) =>
+      ["a", "b"].map((suffix) => ({
+        ...structuredClone(validPhoto()),
+        id: `photo-${id}-${suffix}`,
+        path: `photos/${id}-${suffix}.jpg`,
+        metadata: { ...validPhoto().metadata, correctedAt },
+      })),
+    );
+    document.groups = groupFixtures.map(({ id }) => ({
+      id: `group-${id}`,
+      anchorPhotoId: `photo-${id}-a`,
+      photoIds: [`photo-${id}-a`, `photo-${id}-b`],
+      evidence: {
+        compatibleMemberPairs: 0,
+        incompatibleMemberPairs: 0,
+        unverifiedMemberPairs: 0,
+      },
+    }));
+    document.ungrouped = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+
+    const rendered = render(AlbumShell, {
+      album: normalizeAnalysisAlbum(document),
+      selection,
+      canRefresh: false,
+      onRefresh: vi.fn(),
+      onReset: vi.fn(),
+      onReauthorize: vi.fn(),
+      resolveSource: vi.fn(),
+      releaseSource: vi.fn<(source: ResolvedPhotoSource) => void>(),
+    });
+
+    expect(screen.getByRole("heading", { name: "early-a.jpg" })).toBeVisible();
+    expect(
+      [...rendered.container.querySelectorAll("nav time")].map((time) =>
+        time.getAttribute("datetime"),
+      ),
+    ).toEqual([
+      "2026-08-22T10:00:00.000Z",
+      "2026-08-22T14:00:00.000Z",
+      "2026-08-23T09:00:00.000Z",
+      null,
+    ]);
+    expect(rendered.container.querySelectorAll(".group-day")).toHaveLength(3);
+    expect(screen.getByText("Time unavailable")).toBeVisible();
+    vi.unstubAllGlobals();
   });
 });

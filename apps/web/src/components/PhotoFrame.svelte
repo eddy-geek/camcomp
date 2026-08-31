@@ -151,17 +151,6 @@
 </script>
 
 <article class="photo-frame" aria-labelledby={`photo-${photo.id}`}>
-  <header class="photo-chrome">
-    <div>
-      <h3 id={`photo-${photo.id}`}>{photo.path.split("/").at(-1)}</h3>
-      <span>{alignmentStatus}</span>
-    </div>
-    {#if source?.sourceKind === "sidecar"}<strong class="warning">Sidecar</strong>{/if}
-    {#if source?.sourceKind === "decoded"}<strong class="warning">Decoded copy</strong>{/if}
-    {#if presentationStatus && presentationStatus !== "sdr-source"}
-      <strong class="hdr-badge">{presentationStatusBadge(presentationStatus)}</strong>
-    {/if}
-  </header>
   <div class="viewer" bind:this={viewerElement}>
     {#if loading}<p role="status">Loading full-detail photo…</p>{/if}
     {#if highMemoryWarning}
@@ -174,6 +163,19 @@
     {#if error}<p class="source-error" role="alert">Missing source: {error}</p>{/if}
   </div>
   <div class="photo-details photo-chrome">
+    <header class="photo-heading">
+      <div>
+        <h3 id={`photo-${photo.id}`}>{photo.path.split("/").at(-1)}</h3>
+        <span>{alignmentStatus}</span>
+      </div>
+      <div class="badges">
+        {#if source?.sourceKind === "sidecar"}<strong class="warning">Sidecar</strong>{/if}
+        {#if source?.sourceKind === "decoded"}<strong class="warning">Decoded copy</strong>{/if}
+        {#if presentationStatus && presentationStatus !== "sdr-source"}
+          <strong class="hdr-badge">{presentationStatusBadge(presentationStatus)}</strong>
+        {/if}
+      </div>
+    </header>
     {#if presentationStatus && presentationStatusText(presentationStatus, source?.jpegGainMapRuntimeCapability)}
       <p class="hdr-status" role="status">
         {presentationStatusText(presentationStatus, source?.jpegGainMapRuntimeCapability)}
@@ -211,19 +213,22 @@
     overflow: hidden;
     background: #050708;
   }
-  header {
-    position: absolute;
-    z-index: 4;
-    top: 0;
-    right: 0;
-    left: 0;
+  .photo-heading {
     display: flex;
     min-width: 0;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
     padding: 0.65rem 0.8rem;
-    background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
+    border-bottom: 1px solid var(--border);
+  }
+  .photo-heading > div:first-child {
+    min-width: 0;
+  }
+  .badges {
+    display: flex;
+    flex: none;
+    gap: 0.45rem;
   }
   .photo-chrome {
     opacity: 1;
@@ -241,7 +246,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  header span {
+  .photo-heading span {
     color: var(--muted);
     font-size: 0.72rem;
   }
