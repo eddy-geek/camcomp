@@ -214,3 +214,13 @@ I put a lot more pictures in the data/metadata-calibration folder. each picture 
 note that 50 MP hi-res is supposed to not have HDR (aka Pro XDR) by design, the rest is supposed to have it
  use that to validate and extend the existing metadata parsing setup. Add a dedicated SPEC-OPPO.md file documenting the metadata, and replace any outdated markdown content on the topic by a ref to it. commit.
  I have manually renamed the image's file name with the characteristics (although it can be a bit inconsistent especially Flash setting)
+
+---
+context @REQUIREMENTS.md  and @IMPLEM-DROP2.md
+I have issues with the group comparison display
+* bug : the app behaves like if I where zooming out permanenetly, infinite loop where images get smaller and smaller. maybe rounding behaviour + each image reacting to other image's adjustement  ?
+* UI : I want 100% of the chrome to be dedicated to the image content, no margins, all the chrome must disappear unless I move mouse ; left sidebar collapses almost completely and only expands if I move mouse to the left ; no margin between the picture
+* feat : I want 2 button to trigger '100%' and '200%' besides 'Fit all' for pixel peep. they keep but the same center coordinate and increase zoom so that 1 pixel == 1  screen pixel (determined as well as possible within web/tauri APIs...)
+
+---
+bug: part of the chrome is not hidden, see screenshot - middle picture in of 3 in this case

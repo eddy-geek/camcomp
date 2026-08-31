@@ -5,6 +5,7 @@
   Drop 1 reference suites pass. Real-browser, cross-host, 50 MP, screen-reader, and
   landmark decision-gate evidence remains explicitly pending (§6).
 - **Date:** 2026-08-26
+- **Updated:** 2026-08-31 — stable full-viewport comparison and pixel inspection
 - **Sources:** `PLAN-DROP2.md`, `ADR-DROP3.md`, the generated schema, and the
   completed Drop 1 Rust contracts
 - **Purpose:** Record what was actually implemented, integration feedback discovered
@@ -116,12 +117,18 @@ first presents the safe preflight destination, then starts only from **Run analy
 Browser photos remain selected but enter `native-analysis-required` without claiming a
 save or successful analysis.
 
-### 2.8 Navigation state must survive viewer remounts
+### 2.8 Viewer navigation must be one-way and survive remounts
 
-Grid/slider switching remounts viewer adapters. Newly mounted adapters now receive the
-existing canonical center/span, and programmatic Fit applies to the leader as well as
-followers. User-driven follower updates still skip writeback to the leader, preventing
-feedback loops.
+OpenSeadragon animation and resize events previously let programmatic follower updates
+become new leader input; aspect-ratio reconciliation then compounded the shared span and
+made every image shrink repeatedly. Adapters now publish only explicit user gestures or
+toolbar zoom. Programmatic application is silent, removed leaders are cleared, and
+remounted grid/slider viewers receive the canonical center and scale.
+
+Navigation distinguishes normalized span from physical pixel scale. **Fit all** restores
+the whole-image view; **100%** and **200%** preserve the current center and use
+`devicePixelRatio` as the best browser/Tauri estimate of physical screen pixels. Each
+viewer derives its own span so mixed image resolutions remain at the requested scale.
 
 ### 2.9 WebKit offline navigation is a Playwright limitation in this environment
 
@@ -151,6 +158,15 @@ approval; Tauri now consumes only generated `apps/web/dist`. An initial parallel
 `mise run check` exposed a race where Vite's `emptyOutDir` briefly removed `sw.js` while
 Tauri's `generate_context!` read the frontend. Rust lint/test/build and `tauri:check` now
 depend on `web:build`, making the combined check deterministic.
+
+### 2.12 Comparison chrome must not resize or obstruct the viewer
+
+The ready album now fills the webview with gapless image cells. App, group, photo, EXIF,
+and slider chrome are overlays that auto-hide after pointer inactivity; the group sidebar
+collapses to a left-edge activation rail and expands on hover or keyboard focus. Hidden
+overlays do not participate in layout or intercept image gestures. Focus retained by an
+OpenSeadragon canvas does not keep that photo's informational chrome visible; only focus
+inside an actual control can override inactivity hiding.
 
 ## 3. Format and viewer decisions
 
@@ -264,6 +280,11 @@ shell entries.
 - `npm audit --audit-level=high`: zero vulnerabilities.
 - Tauri development launch reached the running native binary with the shared Vite
   frontend.
+- The 2026-08-31 viewer follow-up passes formatting, ESLint, strict Svelte/TypeScript,
+  the production PWA build, 54 unit/component tests, and synthetic viewer tests in
+  Chromium, WebKit, and Firefox. Browser coverage verifies stable dimensions, gapless
+  viewport use, collapsed/revealed chrome, focused-canvas hiding, and device-aware
+  100%/200% rendering within one backing pixel per edge.
 
 ## 6. Acceptance status requiring real/manual evidence
 

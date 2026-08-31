@@ -233,10 +233,6 @@
     opacity: 0;
     pointer-events: none;
   }
-  :global(.has-group:not(.chrome-visible)) .photo-frame:focus-within .photo-chrome {
-    opacity: 1;
-    pointer-events: auto;
-  }
   h3 {
     max-width: 22rem;
     margin: 0;

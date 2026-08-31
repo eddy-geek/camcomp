@@ -100,7 +100,7 @@
     opacity: 0;
     pointer-events: none;
   }
-  :global(.has-group:not(.chrome-visible)) .comparison:focus-within .slider-chrome {
+  :global(.has-group:not(.chrome-visible)) .slider-chrome:focus-within {
     opacity: 1;
     pointer-events: auto;
   }

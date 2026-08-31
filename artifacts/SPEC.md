@@ -251,6 +251,23 @@ Given a pointer over any source photo, a future Drop 3 implementation can:
 
 The UI shall expose alignment confidence and avoid abrupt viewport jumps when a local mapping is unavailable. Registration describes static scene geometry; a moving subject may legitimately map poorly.
 
+### 7.4 Drop 3 comparison viewer
+
+The ready comparison shall use the complete webview for gapless image cells. Navigation,
+photo metadata, and application controls shall be non-sizing overlays that hide after
+pointer inactivity; the group list shall collapse to a left-edge rail and expand on hover
+or keyboard focus. Hidden overlays shall not intercept image gestures. Focus retained by
+an image viewer shall not reveal informational chrome; focus within an actual control may
+keep that control visible.
+
+Synchronized navigation shall maintain one canonical center. Only user pan/zoom gestures
+and explicit toolbar actions may update it; applying state to another viewer or resizing a
+viewer shall be silent. **Fit all** uses normalized oriented-image coordinates. **100%**
+and **200%** preserve the current center and mean respectively one and two best-estimate
+physical screen pixels per oriented source pixel. The initial browser/Tauri implementation
+shall derive that estimate from CSS viewport dimensions and `devicePixelRatio`, with each
+viewer calculating its own span for its image dimensions.
+
 ## 8. `camcomp.json`
 
 ### 8.1 Versioning and cache behavior

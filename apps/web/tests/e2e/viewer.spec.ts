@@ -246,6 +246,21 @@ test("two-photo groups preserve controls and expose an accessible comparison sli
   }
   expect(new Set(stableWidths.map((width) => width.toFixed(3))).size).toBe(1);
 
+  const secondViewer = page.locator(".photo-frame").nth(1).locator(".openseadragon-canvas");
+  await secondViewer.click();
+  await expect(secondViewer).toBeFocused();
+  await expect
+    .poll(() =>
+      page
+        .locator(".photo-chrome")
+        .evaluateAll((elements) =>
+          elements.every((element) => getComputedStyle(element).opacity === "0"),
+        ),
+    )
+    .toBe(true);
+
+  await page.mouse.move(viewport!.width / 2, viewport!.height / 2);
+  await expect(page.locator(".viewer-toolbar")).toHaveCSS("opacity", "1");
   await page.getByRole("button", { name: "Comparison slider" }).click();
   const divider = page.getByRole("slider", { name: /comparison divider/i });
   await expect(divider).toBeVisible();
