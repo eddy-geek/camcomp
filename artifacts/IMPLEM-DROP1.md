@@ -44,8 +44,8 @@ Decoding to full-resolution RGB, release build, single-threaded:
 
 This settles `PLAN-DROP1.md` §20 item 4 (HEIC maturity concern) and reverses the
 ADR §3.6 conclusion that preferred the AGPL `heic` crate: `heif-oxide` is
-permissive, pure Rust, and decodes every reference file. **The ADR should be
-updated.**
+permissive, pure Rust, and decodes every reference file. ADR-DROP1 now marks
+that provisional codec assessment as superseded by §1.1–§1.2 here.
 
 ### 1.2 Re-checked against the `heic` crate (imazen), and kept `heif-oxide`
 
@@ -610,8 +610,8 @@ The label outcome is identical at analysis edges of 320, 480, 600 and the 1200
 default, which is what lets the integration test run at 320
 (`PLAN-TEST-REFACTOR.md`).
 
-**Debug build, on `tstgrp1` (3 photos: two 50 MP HEIC, one 12.6 MP HEIC),
-`camcomp analyze --dry-run --no-cache`:**
+**Historical unoptimized debug build, on `tstgrp1` (3 photos: two 50 MP HEIC,
+one 12.6 MP HEIC), `camcomp analyze --dry-run --no-cache`:**
 
 | analysis edge | wall | CPU |
 |---|---:|---:|
@@ -621,49 +621,28 @@ default, which is what lets the integration test run at 320
 | 120 | 35.5 s | 86.4 s |
 
 The gap between 480 and 320 (15 s) is the resolution-dependent half; what
-remains at 320 (46 s) is mostly decode, and even at the lowest edge tried the
-floor is 35 s for one 50 MP + one 12.6 MP HEIC decode pair. **Decode dominates
-the debug cost** — the opposite of the release profile above, where decode is
-tens of milliseconds and matching is the visible cost. `heif-oxide` and
-`rust_h265` are pure Rust with bounds checks on every access, and an
-unoptimized build pays for that on every pixel of a 50 MP frame.
+remained at 320 (46 s) was mostly decode, and even at the lowest edge tried the
+floor was 35 s for one 50 MP + one 12.6 MP HEIC decode pair. **Decode dominated
+the unoptimized debug cost** — the opposite of the release profile above, where
+decode is tens to hundreds of milliseconds and matching is the visible cost.
+`heif-oxide` and `rust_h265` are pure Rust, and an `opt-level=0` build paid the
+bounds-check and pixel-loop cost across every pixel of a 50 MP frame.
 
-This is why lowering the reference-set suite's analysis edge (480 → 320) helps
-the release run but is close to cosmetic for a debug run, and why the suite
-instead moved to running in release from `mise run test`
-(`PLAN-TEST-REFACTOR.md` §4 step 1): no analysis-edge change fixes a
-debug-mode decode floor measured in tens of seconds per photo.
+That evidence originally justified running the reference suite in release from
+`mise run test` (`PLAN-TEST-REFACTOR.md` §4 step 1). At that time the shared
+reference-set pass measured 8.9 seconds in release and 7 minutes 17 seconds in
+unoptimized debug, with 6 minutes 32 seconds spent in the shared pass.
 
-**Measured suite runtime** (`cargo test -p camcomp-core --test reference_sets`,
-eight reference sets, nine tests, one shared analysis pass at edge 320):
-
-| build | wall |
-|---|---:|
-| release | 8.9 s |
-| debug | 7 min 17 s (shared pass: 6 min 32 s of it) |
-
-`cargo test --workspace --all-features --lib --bins` (everything else in the
-workspace, debug): 52.3 s. `--doc`: 13.6 s.
-
-The reference-set suite now only runs in release from `mise run test`
-(`PLAN-TEST-REFACTOR.md` §4 step 1) — 8.9 s there, against the original single
-test that ran over 5 minutes and was killed. **A plain `cargo test --workspace`
-typed directly, without `mise`, still executes `reference_sets` in debug and
-still pays about 7 minutes**, because that number is the shared pass decoding
-~20 real photos once, several at 50 MP, and decode is what dominates in an
-unoptimized build (measured above). No test-structure change removes that: the
-one-shared-pass design already cut the old suite's per-test-multiplied cost
-(nine full passes) to one, and going further would mean either analyzing fewer
-of the eight labelled sets — which the suite's own coverage argument (§4 step 4
-in `PLAN-TEST-REFACTOR.md`) rejects — or skipping the suite in debug, which the
-plan rejects as dishonest. This is the outcome the plan's own decision rule
-anticipates for the "decode dominates" branch: steps 1, 2 and 4 land, step 3 is
-close to a rounding error in debug, and the acceptance criterion of "a few
-minutes at worst" is met for the sanctioned `mise run test` path but not for a
-raw `cargo test --workspace` invocation when the reference photos are present.
-The suite says so itself: `shared reference-set pass: 8 set(s) analyzed in
-392.3s at analysis edge 320`, printed once instead of the run appearing to
-hang.
+The 2026-08-31 Tauri display investigation superseded the workspace-debug
+conclusion without changing the suite structure: `[profile.dev]` now uses
+`opt-level=2`, while retaining debug information and assertions. A warm
+`cargo test -p camcomp-core --all-features --test reference_sets` now completes
+in 18.3 seconds wall time, including a 17.95-second test run; the corresponding
+release run in the combined check took 10.13 seconds. The first optimized-dev
+compilation added 25.37 seconds before a 17.88-second test run. Therefore a raw
+workspace test no longer has the former seven-minute HEIC decode floor, although
+`mise run test` deliberately keeps the real-photo suite in release for the
+faster sanctioned path.
 
 ### 6.11 The framing predicate compares angles of view, not focal lengths
 

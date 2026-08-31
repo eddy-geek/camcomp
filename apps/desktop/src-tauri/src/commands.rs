@@ -4,11 +4,12 @@
 //! expands to a `#[macro_export]`ed helper macro plus a `pub use` of it, and at
 //! the crate root those two collide.
 
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufWriter, Read, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Condvar, Mutex};
 
 use camcomp_core::cache;
 use camcomp_core::imageio::SourceFormat;
@@ -26,6 +27,7 @@ pub const PROGRESS_EVENT: &str = "camcomp://progress";
 const MAX_HEIC_COMPRESSED_BYTES: u64 = 256 * 1024 * 1024;
 /// Largest oriented HEIC accepted by the display decoder.
 const MAX_HEIC_PIXELS: u64 = 120_000_000;
+const MAX_PARALLEL_HEIC_DECODES: usize = 2;
 /// Versioned suffix so changing display-decoder behavior invalidates old files.
 const HEIC_CACHE_SUFFIX: &str = "heif-oxide-v1.png";
 
@@ -205,11 +207,68 @@ impl RunState {
     }
 }
 
+struct DecodeGateState {
+    active: HashSet<String>,
+}
+
+struct DecodeGate {
+    state: Mutex<DecodeGateState>,
+    ready: Condvar,
+}
+
+impl Default for DecodeGate {
+    fn default() -> Self {
+        Self {
+            state: Mutex::new(DecodeGateState {
+                active: HashSet::new(),
+            }),
+            ready: Condvar::new(),
+        }
+    }
+}
+
+impl DecodeGate {
+    fn enter<'a>(&'a self, key: &str) -> Result<DecodePermit<'a>, CommandError> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| command_error("state", "The native HEIC decoder is unavailable."))?;
+        while state.active.len() >= MAX_PARALLEL_HEIC_DECODES || state.active.contains(key) {
+            state = self
+                .ready
+                .wait(state)
+                .map_err(|_| command_error("state", "The native HEIC decoder is unavailable."))?;
+        }
+        state.active.insert(key.to_string());
+        Ok(DecodePermit {
+            gate: self,
+            key: key.to_string(),
+        })
+    }
+}
+
+struct DecodePermit<'a> {
+    gate: &'a DecodeGate,
+    key: String,
+}
+
+impl Drop for DecodePermit<'_> {
+    fn drop(&mut self) {
+        let mut state = self
+            .gate
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        state.active.remove(&self.key);
+        self.gate.ready.notify_all();
+    }
+}
+
 /// Native access state for the source root acquired by the current import.
 #[derive(Default)]
 pub struct SourceScope {
     root: Mutex<Option<PathBuf>>,
-    decoder: Mutex<()>,
+    decoder: DecodeGate,
 }
 
 impl SourceScope {
@@ -759,16 +818,14 @@ fn decode_heic_to_cache(
     std::fs::create_dir_all(&cache_dir)
         .map_err(|_| command_error("io", "Application cache storage could not be created."))?;
     let display = cache_dir.join(format!("{digest}-{HEIC_CACHE_SUFFIX}"));
+    let expected_dimensions = (photo.dimensions.oriented[0], photo.dimensions.oriented[1]);
+    if display.is_file() && displayed_dimensions(&display).ok() == Some(expected_dimensions) {
+        return Ok(display);
+    }
 
     let source_scope = app.state::<SourceScope>();
-    let _decoder = source_scope
-        .decoder
-        .lock()
-        .map_err(|_| command_error("state", "The native HEIC decoder is unavailable."))?;
-    if display.is_file()
-        && displayed_dimensions(&display).ok()
-            == Some((photo.dimensions.oriented[0], photo.dimensions.oriented[1]))
-    {
+    let _decoder = source_scope.decoder.enter(&digest)?;
+    if display.is_file() && displayed_dimensions(&display).ok() == Some(expected_dimensions) {
         return Ok(display);
     }
     let _ = std::fs::remove_file(&display);
@@ -904,6 +961,49 @@ mod tests {
         assert!(second.is_cancelled());
         state.finish(second_id);
         assert!(!state.cancel());
+    }
+
+    #[test]
+    fn decode_gate_bounds_parallelism_and_serializes_matching_cache_keys() {
+        use std::sync::{mpsc, Arc};
+        use std::time::Duration;
+
+        let gate = Arc::new(DecodeGate::default());
+        let first = gate.enter("first").unwrap();
+        let (acquired_tx, acquired_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let second_gate = Arc::clone(&gate);
+        let second = std::thread::spawn(move || {
+            let _permit = second_gate.enter("second").unwrap();
+            acquired_tx.send(()).unwrap();
+            release_rx.recv().unwrap();
+        });
+        acquired_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+
+        let (third_tx, third_rx) = mpsc::channel();
+        let third_gate = Arc::clone(&gate);
+        let third = std::thread::spawn(move || {
+            let _permit = third_gate.enter("third").unwrap();
+            third_tx.send(()).unwrap();
+        });
+        assert!(third_rx.recv_timeout(Duration::from_millis(50)).is_err());
+        drop(first);
+        third_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        release_tx.send(()).unwrap();
+        second.join().unwrap();
+        third.join().unwrap();
+
+        let first = gate.enter("same").unwrap();
+        let (matching_tx, matching_rx) = mpsc::channel();
+        let matching_gate = Arc::clone(&gate);
+        let matching = std::thread::spawn(move || {
+            let _permit = matching_gate.enter("same").unwrap();
+            matching_tx.send(()).unwrap();
+        });
+        assert!(matching_rx.recv_timeout(Duration::from_millis(50)).is_err());
+        drop(first);
+        matching_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        matching.join().unwrap();
     }
 
     #[test]

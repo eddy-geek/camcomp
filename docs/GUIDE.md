@@ -432,13 +432,16 @@ JPEG and PNG display directly. HEIC handling is capability-based:
 4. otherwise explain that Tauri is required.
 
 Sidecar use is always labelled because compression, color, crop, or content can differ.
-The worker uses lossless PNG output, runs one decode at a time, cancels when the album
-closes, and rejects images above 60 MP. A representative 50 MP comparison measured about
-2 GiB extra Chromium RAM; other applications may become less
-responsive. Tauri remains the lower-memory fallback and decodes HEIC off the UI thread
-into a digest-keyed lossless PNG in application cache. Neither path creates a display
-copy in the source folder. The browser worker's LGPL source and replacement information
-is available from **Third-party notices** in the application footer.
+The browser worker uses lossless PNG output, runs one decode at a time, cancels when the
+album closes, and rejects images above 60 MP. A representative 50 MP comparison measured
+about 2 GiB extra Chromium RAM; other applications may become less responsive. Tauri
+remains the lower-memory fallback and decodes HEIC off the UI thread into a digest-keyed
+lossless PNG in application cache. It resolves at most two distinct uncached HEICs at
+once to improve group startup without allowing every group member to allocate a
+full-resolution decode simultaneously; duplicate requests for one source are serialized
+and reuse the completed cache entry. Neither path creates a display copy in the source
+folder. The browser worker's LGPL source and replacement information is available from
+**Third-party notices** in the application footer.
 
 The installed PWA caches fingerprinted application-shell assets only. Selected photos,
 EXIF, `camcomp.json`, object URLs, and decoded images are not placed in Cache Storage and

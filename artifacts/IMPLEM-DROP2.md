@@ -5,7 +5,8 @@
   Drop 1 reference suites pass. Real-browser, cross-host, 50 MP, screen-reader, and
   landmark decision-gate evidence remains explicitly pending (§6).
 - **Date:** 2026-08-26
-- **Updated:** 2026-08-31 — stable full-viewport comparison and pixel inspection
+- **Updated:** 2026-08-31 — stable full-viewport comparison, pixel inspection, and
+  bounded native HEIC decoding
 - **Sources:** `PLAN-DROP2.md`, `ADR-DROP3.md`, the generated schema, and the
   completed Drop 1 Rust contracts
 - **Purpose:** Record what was actually implemented, integration feedback discovered
@@ -45,10 +46,11 @@ whichever explicit file happened to be first.
 Native display resolution is scoped to the currently acquired root. Relative paths,
 parent traversal, absolute injection, non-portable separators, and symlink escapes are
 rejected. JPEG/PNG sources are exposed through Tauri's dynamically extended asset
-scope. HEIC uses a dimension-matching same-stem sidecar first, then a one-at-a-time,
-size-guarded `heif-oxide` decode to a digest-keyed lossless PNG in application cache.
-No full image is sent through JSON IPC and no display derivative is written beside the
-photos.
+scope. HEIC uses a dimension-matching same-stem sidecar first, then a size-guarded
+`heif-oxide` decode to a digest-keyed lossless PNG in application cache. At most two
+distinct cache misses run concurrently; requests for the same digest serialize and reuse
+the committed cache entry. No full image is sent through JSON IPC and no display
+derivative is written beside the photos.
 
 Run completion is ID-aware: completion of a cancelled stale run can no longer clear
 the cancellation token of the active replacement run.
@@ -168,6 +170,48 @@ overlays do not participate in layout or intercept image gestures. Focus retaine
 OpenSeadragon canvas does not keep that photo's informational chrome visible; only focus
 inside an actual control can override inactivity hiding.
 
+### 2.13 Native HEIC latency was development-profile work, not a decoder regression
+
+A Tauri development launch appeared to process group members sequentially at roughly
+40 seconds per photo. The frontend already mounted each `PhotoFrame` independently and
+issued its native source-resolution command concurrently, but `SourceScope` held one
+global mutex across cache validation, HEIC decode, and PNG encoding. More importantly,
+the native development profile left the pure-Rust pixel and compression loops at
+`opt-level=0`.
+
+A standalone harness timed the exact decode-to-cache stages for the 8192×6144,
+14 MiB `tstgrp1/g1-IMG20260822113555.heic` on an Apple M4 Pro:
+
+| build profile | read | `heif-oxide` decode | lossless PNG | total |
+|---|---:|---:|---:|---:|
+| unoptimized development | 3.8 ms | 3.40 s | 16.00 s | 19.40 s |
+| release | 3.7 ms | 289 ms | 264 ms | 557 ms |
+| development, `opt-level=2` | 3.7 ms | 346 ms | 550 ms | 900 ms |
+
+The generated PNG was 85 MiB and the measured peak process working set was about
+690 MiB for one 50 MP conversion. This makes unconstrained group-wide parallelism unsafe.
+The workspace development profile now uses `opt-level=2`, retaining debug information
+and assertions while removing the pathological pixel-loop cost. The global mutex became
+a two-permit, digest-aware gate: different cache misses may proceed together, while two
+requests for the same source cannot race the shared temporary/cache path. Cached entries
+are checked before waiting and again after admission.
+
+Two 50 MP conversions through the optimized development harness took 1.89 seconds
+sequentially and 1.10 seconds when run concurrently. The limit remains two because the
+wall-clock improvement otherwise trades directly against hundreds of MiB of additional
+working memory per admitted image. A unit test holds two distinct permits, verifies a
+third waits, and verifies matching digest keys serialize.
+
+No decoder replacement or GPU path was adopted. `heif-oxide` already parallelizes
+independent HEIC grid tiles and row-wise YUV-to-RGB conversion, and the Drop 1 comparison
+measured it faster than the SIMD/tile-parallel `heic` crate; that alternative also requires
+AGPL-3.0 compliance or a commercial licence. `libheif` wrappers add native or downloaded
+binary packaging and LGPL/GPL review without hardware acceleration in the usual
+`libde265` configuration. Hardware HEVC still-image decode would require separate
+ImageIO/VideoToolbox, Windows Imaging Component, and Linux FFmpeg/VA-API adapters. At
+about 0.3 seconds for the measured CPU decode, that platform-specific complexity is not
+justified.
+
 ## 3. Format and viewer decisions
 
 ### Gate A — non-native browser HEIC
@@ -285,6 +329,10 @@ shell entries.
   Chromium, WebKit, and Firefox. Browser coverage verifies stable dimensions, gapless
   viewport use, collapsed/revealed chrome, focused-canvas hiding, and device-aware
   100%/200% rendering within one backing pixel per edge.
+- The 2026-08-31 native HEIC follow-up passes 242 core tests, 16 Tauri command tests,
+  documentation tests, 10 release reference-set tests, workspace Clippy with warnings
+  denied, the frontend production build, and the Tauri compile check. Its gate test
+  covers the two-permit bound and same-digest serialization.
 
 ## 6. Acceptance status requiring real/manual evidence
 

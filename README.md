@@ -154,8 +154,9 @@ Read `artifacts/IMPLEM-DROP1.md` before trusting a threshold. The short version:
   dimension-matched same-stem JPEG/PNG sidecar, then offer an explicit high-memory
   lossless worker decode. A 50 MP worker decode measured about 2.1 GiB peak RAM, so
   it never starts without confirmation; Tauri remains the lower-risk fallback.
-- Tauri HEIC display uses `heif-oxide` and writes a digest-keyed lossless PNG only
-  to application cache storage. The source folder is never modified.
+- Tauri HEIC display uses `heif-oxide`, resolves up to two distinct uncached photos
+  concurrently, and writes digest-keyed lossless PNGs only to application cache storage.
+  Duplicate requests share the same cache result; the source folder is never modified.
 
 ## Documents
 
