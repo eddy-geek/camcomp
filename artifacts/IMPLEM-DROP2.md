@@ -47,9 +47,9 @@ Native display resolution is scoped to the currently acquired root. Relative pat
 parent traversal, absolute injection, non-portable separators, and symlink escapes are
 rejected. JPEG/PNG sources are exposed through Tauri's dynamically extended asset
 scope. HEIC uses a dimension-matching same-stem sidecar first, then a size-guarded
-`heif-oxide` decode to a digest-keyed lossless PNG in application cache. At most two
-distinct cache misses run concurrently; requests for the same digest serialize and reuse
-the committed cache entry. No full image is sent through JSON IPC and no display
+`heif-oxide` decode to a digest-keyed SDR PNG with lossless encoding in application cache.
+At most two distinct cache misses run concurrently; requests for the same digest serialize
+and reuse the committed cache entry. No full image is sent through JSON IPC and no display
 derivative is written beside the photos.
 
 Run completion is ID-aware: completion of a cancelled stale run can no longer clear
@@ -213,6 +213,20 @@ ImageIO/VideoToolbox, Windows Imaging Component, and Linux FFmpeg/VA-API adapter
 about 0.3 seconds for the measured CPU decode, that platform-specific complexity is not
 justified.
 
+### 2.14 Native display must inspect bytes before trusting the suffix
+
+The OPPO metadata-calibration set contains JPEG bitstreams with `.heic` filenames. Analysis
+already gives magic bytes precedence over the extension, but native display resolution
+originally selected `heif-oxide` from the suffix alone and rejected those files as truncated
+HEIF containers. Tauri now probes the first 12 bytes with the shared `SourceFormat` detector.
+Mislabeled JPEGs and PNGs display directly, preserving their original encoded representation
+and allowing JPEG gain-map inspection; only genuine HEIF containers enter sidecar selection
+or the decode-to-cache path.
+
+Genuine HEIF cache derivatives are sRGB PNGs and are explicitly labelled SDR. Their
+digest-keyed cache remains valid across this correction; no cache cleanup or source-folder
+write is required.
+
 ## 3. Format and viewer decisions
 
 ### Gate A — non-native browser HEIC
@@ -255,7 +269,8 @@ high-memory exception rather than represented as an unqualified pass.
 
 `heic-to` and its embedded libheif build add LGPL-3.0 obligations. The shipped static
 third-party notice identifies the exact version, source, license terms, and replacement
-path. Tauri continues to use the MIT/Apache-2.0 `heif-oxide` decoder and lossless PNG.
+path. Tauri continues to use the MIT/Apache-2.0 `heif-oxide` decoder and losslessly
+encoded SDR PNG derivatives.
 
 ### Gate B — OpenSeadragon simple sources
 

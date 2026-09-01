@@ -422,7 +422,8 @@ photo order, navigation mode, and canonical center/span.
 
 ## 13. Formats, offline use, and privacy
 
-JPEG and PNG display directly. HEIC handling is capability-based:
+JPEG and PNG display directly, including JPEG data written with an incorrect `.heic`
+extension. HEIC handling is capability-based:
 
 1. use the exact HEIC when the runtime successfully decodes it natively;
 2. otherwise try a same-directory, same-stem `.jpg`, `.jpeg`, then `.png` whose decoded
@@ -432,11 +433,13 @@ JPEG and PNG display directly. HEIC handling is capability-based:
 4. otherwise explain that Tauri is required.
 
 Sidecar use is always labelled because compression, color, crop, or content can differ.
-The browser worker uses lossless PNG output, runs one decode at a time, cancels when the
-album closes, and rejects images above 60 MP. A representative 50 MP comparison measured
-about 2 GiB extra Chromium RAM; other applications may become less responsive. Tauri
-remains the lower-memory fallback and decodes HEIC off the UI thread into a digest-keyed
-lossless PNG in application cache. It resolves at most two distinct uncached HEICs at
+The browser worker uses SDR PNG output with lossless encoding, runs one decode at a time,
+cancels when the album closes, and rejects images above 60 MP. A representative 50 MP
+comparison measured about 2 GiB extra Chromium RAM; other applications may become less
+responsive. Tauri remains the lower-memory fallback and decodes HEIC off the UI thread
+into a digest-keyed
+SDR PNG in application cache. The PNG encoding is lossless, but the current sRGB decode does
+not preserve an HDR HEIF rendition. It resolves at most two distinct uncached HEICs at
 once to improve group startup without allowing every group member to allocate a
 full-resolution decode simultaneously; duplicate requests for one source are serialized
 and reuse the completed cache entry. Neither path creates a display copy in the source

@@ -129,7 +129,7 @@ pub enum PhotoSourceKind {
     Native,
     /// A dimension-matching same-directory JPEG or PNG substitute.
     Sidecar,
-    /// A lossless PNG derived into application cache storage.
+    /// An SDR PNG derived into application cache storage with lossless encoding.
     Decoded,
 }
 
@@ -659,6 +659,21 @@ fn resolve_relative_photo(root: &Path, relative: &str) -> Result<PathBuf, Comman
     Ok(resolved)
 }
 
+fn display_source_format(path: &Path) -> Result<SourceFormat, CommandError> {
+    let mut header = [0_u8; 12];
+    let length = File::open(path)
+        .and_then(|mut file| file.read(&mut header))
+        .map_err(|_| command_error("io", "The photo source header could not be read."))?;
+    SourceFormat::from_magic(&header[..length])
+        .or_else(|| SourceFormat::from_extension(path))
+        .ok_or_else(|| {
+            command_error(
+                "unsupported-format",
+                "The photo is not a supported JPEG, PNG, or HEIC image.",
+            )
+        })
+}
+
 fn displayed_dimensions(path: &Path) -> Result<(u32, u32), CommandError> {
     let reader = ImageReader::open(path)
         .and_then(|reader| reader.with_guessed_format())
@@ -857,31 +872,25 @@ fn resolve_photo_source_sync(
     let root = app.state::<SourceScope>().root()?;
     let original = resolve_relative_photo(&root, &photo.path)?;
     let expected = photo.dimensions.oriented;
-    let (source_kind, display_path, warnings) = match SourceFormat::from_extension(&original) {
-        Some(SourceFormat::Jpeg | SourceFormat::Png) => {
+    let (source_kind, display_path, warnings) = match display_source_format(&original)? {
+        SourceFormat::Jpeg | SourceFormat::Png => {
             if displayed_dimensions(&original)? != (expected[0], expected[1]) {
                 return Err(dimension_mismatch(expected));
             }
             (PhotoSourceKind::Native, original.clone(), Vec::new())
         }
-        Some(SourceFormat::Heif) => {
+        SourceFormat::Heif => {
             let (sidecar, mut warnings) = find_sidecar(&root, &original, expected);
             if let Some(sidecar) = sidecar {
                 (PhotoSourceKind::Sidecar, sidecar, warnings)
             } else {
                 let decoded = decode_heic_to_cache(app, &original, photo)?;
                 warnings.push(
-                    "Decoded the HEIC source losslessly into application cache storage."
+                    "Decoded the HEIC source to an SDR PNG in application cache storage."
                         .to_string(),
                 );
                 (PhotoSourceKind::Decoded, decoded, warnings)
             }
-        }
-        None => {
-            return Err(command_error(
-                "unsupported-format",
-                "The photo is not a supported JPEG, PNG, or HEIC image.",
-            ))
         }
     };
     app.asset_protocol_scope()
@@ -1121,6 +1130,19 @@ mod tests {
         assert_eq!(error.code, "invalid-photo-path");
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::remove_dir_all(&outside);
+    }
+
+    #[test]
+    fn display_format_prefers_jpeg_magic_over_a_heic_extension() {
+        let dir = temp_dir("mislabeled-jpeg");
+        let source = dir.join("photo.heic");
+        image::RgbImage::new(4, 3)
+            .save_with_format(&source, image::ImageFormat::Jpeg)
+            .unwrap();
+
+        assert_eq!(display_source_format(&source).unwrap(), SourceFormat::Jpeg);
+        assert_eq!(displayed_dimensions(&source).unwrap(), (4, 3));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -24,7 +24,7 @@ The existing 12 baseline JPEG fixtures classify as 10 gain-map JPEGs and 2 SDR c
 
 ### 1.2 Shared source and runtime contracts
 
-Resolved photo sources now carry transient `displayDynamicRange` and `jpegGainMapRuntimeCapability` fields. Browser and Tauri adapters annotate the actual display URL after source resolution. Tauri remains unverified by policy; no native parser, IPC image transfer, schema field, or dependency was added. Known PNG/decoded derivatives remain SDR, and direct HEIC remains outside the HDR claim.
+Resolved photo sources now carry transient `displayDynamicRange` and `jpegGainMapRuntimeCapability` fields. Browser and Tauri adapters annotate the actual display URL after source resolution. Tauri remains unverified by policy; no native parser, IPC image transfer, schema field, or dependency was added. Known PNG/decoded derivatives are classified as SDR before transport inspection, because a failed asset fetch cannot make a known PNG's range ambiguous. Direct HEIC remains outside the HDR claim. Tauri also gives source magic bytes precedence over extensions, so JPEG data stored under an OPPO `.heic` filename remains an original JPEG and can retain and expose any gain map it contains.
 
 Runtime recognition is isolated in `viewer/hdr.ts`:
 

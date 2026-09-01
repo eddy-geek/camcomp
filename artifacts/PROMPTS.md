@@ -259,3 +259,7 @@ start from README.md ; in the UI, comparison page, I have issues
 look at ./data/camcomp.json group 132 for an example
 also, popups are truncated and I woul like popups on all truncated text field
 most issues are visible in attached screenshot of group 132
+
+---
+- I now have a clearer error message: 'Missing source: The HEIC source could not be decoded.' -> fix it
+- and still a 'Decoded copy HDR?' (unclear message!) "HDR metadata unverified", maybe because some cache needs to be cleaned ? see screenshot.

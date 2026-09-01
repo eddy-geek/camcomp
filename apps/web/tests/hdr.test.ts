@@ -6,6 +6,7 @@ import {
   ISO_21496_NAMESPACE,
   ITEM_NAMESPACE,
   XMP_PACKET_SIGNATURE,
+  annotateResolvedPhotoSource,
   inspectJpegGainMapUrl,
 } from "../src/sources";
 import {
@@ -150,6 +151,31 @@ describe("JPEG gain-map inspection", () => {
         (result) => result.kind === "unverified" && result.reason === "invalid-trailing-jpeg",
       ),
     ).toHaveLength(3);
+  });
+});
+
+describe("known SDR derivatives", () => {
+  it("classifies decoded PNG copies without attempting HDR metadata transport", async () => {
+    const fetch = vi.fn(async () => {
+      throw new Error("asset transport unavailable");
+    });
+    const source = {
+      photoId: "photo-a",
+      sourceKind: "decoded" as const,
+      displayUrl: "asset://localhost/cache/photo.png",
+      originalPath: "photo.heic",
+      displayPath: "cache/photo.png",
+      warnings: ["Decoded the HEIC source to an SDR PNG in application cache storage."],
+      release: vi.fn(),
+    };
+
+    await expect(
+      annotateResolvedPhotoSource(source, "unverified", { fetch }),
+    ).resolves.toMatchObject({
+      displayDynamicRange: { kind: "sdr" },
+      jpegGainMapRuntimeCapability: "unverified",
+    });
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
 

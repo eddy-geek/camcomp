@@ -115,14 +115,15 @@ export async function annotateResolvedPhotoSource(
   options: JpegHdrInspectionOptions = {},
 ): Promise<ResolvedPhotoSource> {
   let displayDynamicRange: DisplayDynamicRange;
-  try {
-    displayDynamicRange = await inspectJpegGainMapUrl(source.displayUrl, options);
-  } catch (error) {
-    if (isAbortError(error)) throw error;
-    displayDynamicRange = unverified("range-unsupported");
-  }
-  if (displayDynamicRange.kind === "unverified" && displayDynamicRange.reason === "not-jpeg") {
-    displayDynamicRange = knownSdrDisplaySource(source) ? { kind: "sdr" } : displayDynamicRange;
+  if (knownSdrDisplaySource(source)) {
+    displayDynamicRange = { kind: "sdr" };
+  } else {
+    try {
+      displayDynamicRange = await inspectJpegGainMapUrl(source.displayUrl, options);
+    } catch (error) {
+      if (isAbortError(error)) throw error;
+      displayDynamicRange = unverified("range-unsupported");
+    }
   }
   return Object.freeze({
     ...source,
