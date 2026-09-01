@@ -239,7 +239,11 @@ describe("album result", () => {
         ...structuredClone(validPhoto()),
         id: `photo-${id}-${suffix}`,
         path: `photos/${id}-${suffix}.jpg`,
-        metadata: { ...validPhoto().metadata, correctedAt },
+        metadata: {
+          ...validPhoto().metadata,
+          correctedAt,
+          effectiveFocalLength35mm: id === "early" && suffix === "a" ? 24 : undefined,
+        },
       })),
     );
     document.groups = groupFixtures.map(({ id }) => ({
@@ -284,6 +288,9 @@ describe("album result", () => {
       null,
     ]);
     expect(rendered.container.querySelectorAll(".group-day")).toHaveLength(3);
+    expect(rendered.container.querySelectorAll(".group-button .group-row")).toHaveLength(8);
+    expect(screen.getByText("24 mm eq.")).toBeVisible();
+    expect(screen.getAllByText("Focal unavailable")).toHaveLength(3);
     expect(screen.getByText("Time unavailable")).toBeVisible();
     vi.unstubAllGlobals();
   });

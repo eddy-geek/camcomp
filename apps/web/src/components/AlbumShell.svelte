@@ -21,6 +21,7 @@
     readonly group: DeepReadonly<Group>;
     readonly capturedAt?: Date;
     readonly dayKey: string;
+    readonly anchorFocalLength: string;
   }
 
   const dateFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: "full" });
@@ -60,7 +61,22 @@
         group,
         capturedAt,
         dayKey: capturedAt ? dayKeyFormatter.format(capturedAt) : "missing",
+        anchorFocalLength: anchorFocalLengthLabel(group, currentAlbum),
       }));
+  }
+
+  function anchorFocalLengthLabel(group: DeepReadonly<Group>, currentAlbum: IndexedAlbum): string {
+    const metadata = currentAlbum.photosById.get(group.anchorPhotoId)?.metadata;
+    if (metadata?.effectiveFocalLength35mm != null)
+      return `${formatNumber(metadata.effectiveFocalLength35mm)} mm eq.`;
+    if (metadata?.focalLength35mm != null)
+      return `${formatNumber(metadata.focalLength35mm)} mm eq.`;
+    if (metadata?.focalLengthMm != null) return `${formatNumber(metadata.focalLengthMm)} mm`;
+    return "Focal unavailable";
+  }
+
+  function formatNumber(value: number): string {
+    return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value);
   }
 
   function groupCaptureDate(
@@ -128,16 +144,26 @@
           aria-current={index === groupIndex ? "page" : undefined}
           onclick={() => (groupIndex = index)}
         >
-          <strong>Group {index + 1}</strong>
-          <span>{entry.group.photoIds.length} photos</span>
-          {#if entry.group.flags?.length}<small>{entry.group.flags.join(" · ")}</small>{/if}
-          {#if entry.capturedAt}
-            <time datetime={entry.capturedAt.toISOString()}
-              >{timeFormatter.format(entry.capturedAt)}</time
+          <span class="group-row group-summary">
+            <strong>Group {index + 1}</strong>
+            <span>{entry.group.photoIds.length} photos</span>
+          </span>
+          <span class="group-row group-metadata">
+            {#if entry.capturedAt}
+              <time datetime={entry.capturedAt.toISOString()}
+                >{timeFormatter.format(entry.capturedAt)}</time
+              >
+            {:else}
+              <time>Time unavailable</time>
+            {/if}
+            {#if entry.group.flags?.length}<small>{entry.group.flags.join(" · ")}</small>{/if}
+            <span
+              class="anchor-focal"
+              aria-label={`Anchor focal length: ${entry.anchorFocalLength}`}
             >
-          {:else}
-            <time>Time unavailable</time>
-          {/if}
+              {entry.anchorFocalLength}
+            </span>
+          </span>
         </button>
       {/each}
     </nav>
@@ -252,14 +278,14 @@
   }
   nav {
     display: grid;
-    gap: 0.4rem;
+    gap: 0.25rem;
   }
   .group-day {
-    margin: 0.55rem 0 0;
-    padding-top: 0.9rem;
+    margin: 0.4rem 0 0;
+    padding-top: 0.65rem;
     border-top: 1px solid var(--border);
     color: var(--muted);
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     letter-spacing: 0.04em;
     text-transform: uppercase;
   }
@@ -270,31 +296,49 @@
   }
   .group-button {
     display: grid;
-    gap: 0.1rem;
+    gap: 0.15rem;
     width: 100%;
-    border-color: var(--border);
-    background: var(--surface-raised);
+    padding: 0.4rem 0.55rem;
+    border: 0;
+    border-radius: 0.25rem;
+    background: color-mix(in srgb, var(--surface-raised) 72%, var(--surface));
     color: var(--text);
+    font-weight: 400;
     text-align: left;
   }
-  .group-button.active {
-    border-color: var(--teal);
-    background: color-mix(in srgb, var(--teal) 18%, var(--surface-raised));
+  .group-button:hover {
+    background: var(--surface-raised);
   }
-  .group-button span,
-  .group-button small,
-  .group-button time,
+  .group-button.active {
+    background: color-mix(in srgb, var(--teal) 14%, var(--surface-raised));
+  }
+  .group-row {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    gap: 0.45rem;
+  }
+  .group-summary {
+    justify-content: space-between;
+  }
+  .group-metadata {
+    color: var(--muted);
+    font-size: 0.72rem;
+  }
+  .group-metadata small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .anchor-focal {
+    margin-left: auto;
+    white-space: nowrap;
+  }
   details span,
   details small {
     display: block;
     color: var(--muted);
-  }
-  .group-button time {
-    margin-top: 0.25rem;
-    padding-top: 0.35rem;
-    border-top: 1px solid var(--border);
-    font-size: 0.78rem;
-    font-weight: 600;
   }
   details ul {
     display: grid;
