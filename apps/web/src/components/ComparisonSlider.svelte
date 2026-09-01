@@ -76,7 +76,14 @@
     />
   </div>
   {#if statusSummary.length}
-    <p class="comparison-status slider-chrome" role="status">{statusSummary.join(" · ")}</p>
+    <button
+      type="button"
+      class="comparison-status slider-chrome"
+      aria-label={`Comparison status: ${statusSummary.join(" ")}`}
+    >
+      <span aria-hidden="true">!</span>
+      <span class="status-popover" role="status">{statusSummary.join(" · ")}</span>
+    </button>
   {/if}
   <div class="divider slider-chrome" style={`left: ${position}%`}></div>
   <label class="slider-chrome">
@@ -115,21 +122,55 @@
   .comparison-status {
     position: absolute;
     z-index: 5;
-    top: 0.75rem;
-    right: 1rem;
-    left: 1rem;
-    margin: 0;
-    padding: 0.45rem 0.7rem;
-    border-radius: 0.4rem;
-    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    top: 0.4rem;
+    right: 0.4rem;
+    display: grid;
+    width: 1.4rem;
+    min-width: 1.4rem;
+    height: 1.4rem;
+    min-height: 1.4rem;
+    padding: 0;
+    place-items: center;
+    border-color: var(--orange);
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
     color: var(--orange);
-    font-size: 0.76rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+  }
+  .status-popover {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    right: 0;
+    width: max-content;
+    max-width: min(32rem, 80vw);
+    padding: 0.45rem 0.55rem;
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    box-shadow: 0 0.4rem 1.2rem #0008;
+    color: var(--text);
+    font-size: 0.7rem;
+    font-weight: 400;
+    line-height: 1.3;
+    opacity: 0;
+    pointer-events: none;
+    text-align: left;
+    transform: translateY(-0.2rem);
+    transition:
+      opacity 120ms ease,
+      transform 120ms ease;
+  }
+  .comparison-status:hover .status-popover,
+  .comparison-status:focus-visible .status-popover {
+    opacity: 1;
+    transform: none;
   }
   .divider {
     position: absolute;
     z-index: 4;
     top: 0;
-    bottom: 3.5rem;
+    bottom: 2.5rem;
     width: 2px;
     background: white;
     box-shadow: 0 0 0 1px #111;
@@ -138,15 +179,16 @@
   label {
     position: absolute;
     z-index: 5;
-    right: 1rem;
-    bottom: 0.6rem;
-    left: 1rem;
+    right: 0.4rem;
+    bottom: 0.35rem;
+    left: 0.4rem;
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.45rem 0.7rem;
-    border-radius: 0.5rem;
-    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    gap: 0.5rem;
+    padding: 0.3rem 0.45rem;
+    border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+    border-radius: 0.35rem;
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
   }
   label span {
     min-width: 10rem;

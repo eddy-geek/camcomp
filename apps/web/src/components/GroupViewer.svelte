@@ -23,6 +23,10 @@
   export let releaseSource: (source: ResolvedPhotoSource) => void;
   export let dynamicRangeMode: DynamicRangeMode = "automatic";
   export let onDynamicRangeModeChange: (mode: DynamicRangeMode) => void = () => undefined;
+  export let canSelectPreviousGroup = false;
+  export let canSelectNextGroup = false;
+  export let onSelectPreviousGroup: () => void = () => undefined;
+  export let onSelectNextGroup: () => void = () => undefined;
 
   let container: HTMLElement;
   let width = 1200;
@@ -69,17 +73,63 @@
       return currentMode === "aligned" ? "Normalized fallback · no alignment" : "No alignment";
     return `${alignment.provenance} · ${Math.round(alignment.confidence * 100)}%`;
   }
+
+  function handleKeydown(event: KeyboardEvent): void {
+    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest('input, select, textarea, button, a, [contenteditable="true"]')
+    )
+      return;
+
+    let handled = true;
+    switch (event.key) {
+      case "ArrowLeft":
+        controller.panBy(-0.1, 0);
+        break;
+      case "ArrowRight":
+        controller.panBy(0.1, 0);
+        break;
+      case "ArrowUp":
+        controller.panBy(0, -0.1);
+        break;
+      case "ArrowDown":
+        controller.panBy(0, 0.1);
+        break;
+      case "+":
+      case "=":
+        controller.zoomBy(1.25);
+        break;
+      case "-":
+        controller.zoomBy(0.8);
+        break;
+      case "PageUp":
+        if (canSelectPreviousGroup) onSelectPreviousGroup();
+        else handled = false;
+        break;
+      case "PageDown":
+      case " ":
+        if (canSelectNextGroup) onSelectNextGroup();
+        else handled = false;
+        break;
+      default:
+        handled = false;
+    }
+    if (handled) event.preventDefault();
+  }
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <section class="viewer-shell" aria-labelledby="viewer-heading">
   <header class="toolbar viewer-toolbar">
-    <div>
-      <p class="eyebrow">{group.photoIds.length} photos</p>
-      <h2 id="viewer-heading">Comparison group</h2>
-    </div>
+    <h2 id="viewer-heading">
+      Comparison group <span>· {group.photoIds.length} photos</span>
+    </h2>
     <div class="controls" role="toolbar" aria-label="Viewer controls">
       <label>
-        Dynamic range
+        <span class="control-label">Dynamic range</span>
         <select
           value={dynamicRangeMode}
           aria-label="Dynamic range"
@@ -91,9 +141,10 @@
         </select>
       </label>
       <label>
-        Navigation
+        <span class="control-label">Navigation</span>
         <select
           value={mode}
+          aria-label="Navigation"
           onchange={(event) => setMode(event.currentTarget.value as NavigationMode)}
         >
           <option value="normalized">Normalized</option>
@@ -191,16 +242,17 @@
   .toolbar {
     position: absolute;
     z-index: 25;
-    top: 4.4rem;
-    right: 0.6rem;
-    left: 0.6rem;
+    top: 3.1rem;
+    right: 0.4rem;
+    left: 0.4rem;
     display: flex;
-    align-items: end;
+    align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    padding: 0.5rem;
-    border-radius: 0.55rem;
-    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    gap: 0.5rem;
+    padding: 0.3rem 0.4rem;
+    border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+    border-radius: 0.4rem;
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
     opacity: 1;
     transition:
       opacity 160ms ease,
@@ -216,32 +268,47 @@
     pointer-events: auto;
     transform: none;
   }
-  h2,
-  .eyebrow {
+  h2 {
     margin: 0;
+    font-size: 0.85rem;
+    white-space: nowrap;
   }
-  .eyebrow,
+  h2 span,
   .mode-note {
     color: var(--muted);
+    font-weight: 400;
   }
   .controls {
     display: flex;
     flex-wrap: wrap;
-    align-items: end;
-    gap: 0.5rem;
+    align-items: center;
+    gap: 0.3rem;
   }
   .controls label {
-    display: grid;
-    gap: 0.2rem;
+    display: block;
     color: var(--muted);
     font-size: 0.72rem;
   }
+  .control-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
   select {
-    min-height: 2.2rem;
+    min-height: 1.8rem;
+    max-width: 12rem;
     border: 1px solid var(--border);
-    border-radius: 0.4rem;
-    background: var(--surface-raised);
+    border-radius: 0.3rem;
+    background: color-mix(in srgb, var(--surface-raised) 82%, transparent);
     color: var(--text);
+    font-size: 0.72rem;
+  }
+  .controls button {
+    min-height: 1.8rem;
+    padding: 0.25rem 0.55rem;
   }
   .mode-note {
     position: absolute;

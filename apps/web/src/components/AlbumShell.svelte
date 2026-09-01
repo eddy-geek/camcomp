@@ -156,7 +156,9 @@
             {:else}
               <time>Time unavailable</time>
             {/if}
-            {#if entry.group.flags?.length}<small>{entry.group.flags.join(" · ")}</small>{/if}
+            {#if entry.group.flags?.length}
+              <small title={entry.group.flags.join(" · ")}>{entry.group.flags.join(" · ")}</small>
+            {/if}
             <span
               class="anchor-focal"
               aria-label={`Anchor focal length: ${entry.anchorFocalLength}`}
@@ -215,6 +217,10 @@
           {releaseSource}
           {dynamicRangeMode}
           onDynamicRangeModeChange={(mode) => (dynamicRangeMode = mode)}
+          canSelectPreviousGroup={groupIndex > 0}
+          canSelectNextGroup={groupIndex < groups.length - 1}
+          onSelectPreviousGroup={() => (groupIndex -= 1)}
+          onSelectNextGroup={() => (groupIndex += 1)}
         />
       {/key}
     {:else}
@@ -363,15 +369,23 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.75rem;
-    padding: 0.35rem;
-    border-radius: 0.55rem;
-    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    gap: 0.4rem;
+    padding: 0.25rem;
+    border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+    border-radius: 0.4rem;
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
     opacity: 0;
     transform: translate(-50%, -0.5rem);
     transition:
       opacity 160ms ease,
       transform 160ms ease;
+  }
+  .group-nav button {
+    min-height: 1.8rem;
+    padding: 0.25rem 0.55rem;
+  }
+  .group-nav span {
+    font-size: 0.78rem;
   }
   .has-group:not(.chrome-visible) .group-nav {
     pointer-events: none;

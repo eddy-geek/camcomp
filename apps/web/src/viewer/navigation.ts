@@ -191,6 +191,25 @@ export class NavigationController {
     this.#schedule();
   }
 
+  panBy(horizontalViewportFraction: number, verticalViewportFraction: number): void {
+    if (!Number.isFinite(horizontalViewportFraction) || !Number.isFinite(verticalViewportFraction))
+      return;
+    const leader = this.#state.leaderPhotoId ?? this.#adapters.keys().next().value;
+    const viewport = leader ? this.#adapters.get(leader)?.viewport() : null;
+    const span =
+      viewport?.span ?? (this.#state.scale.kind === "normalized" ? this.#state.scale.span : [1, 1]);
+    this.#state = {
+      ...this.#state,
+      center: [
+        this.#state.center[0] + span[0] * horizontalViewportFraction,
+        this.#state.center[1] + span[1] * verticalViewportFraction,
+      ],
+      sequence: this.#state.sequence + 1,
+    };
+    this.#applyLeader = true;
+    this.#schedule();
+  }
+
   zoomBy(factor: number): void {
     const leader = this.#state.leaderPhotoId ?? this.#adapters.keys().next().value;
     if (leader) this.#adapters.get(leader)?.zoomBy(factor);

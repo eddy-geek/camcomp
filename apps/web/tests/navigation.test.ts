@@ -68,7 +68,7 @@ class FakeAdapter implements ViewerAdapter {
   readonly applied = vi.fn();
   #handler?: (interaction: ViewerInteraction) => void;
   open = vi.fn(async () => undefined);
-  viewport = vi.fn(() => null);
+  viewport = vi.fn<() => ViewerInteraction | null>(() => null);
   applyViewport = this.applied;
   applyPixelRatio = vi.fn();
   fit = vi.fn();
@@ -126,6 +126,36 @@ describe("navigation controller", () => {
     await new Promise((resolve) => requestAnimationFrame(resolve));
     expect(leader.applied).toHaveBeenCalledWith([0.5, 0.5], [1, 1]);
     expect(remountedPeer.applied).toHaveBeenLastCalledWith([0.5, 0.5], [1, 1]);
+    controller.destroy();
+  });
+
+  it("pans every viewer by a fraction of the visible leader viewport", async () => {
+    const controller = new NavigationController(group);
+    const leader = new FakeAdapter();
+    const peer = new FakeAdapter();
+    controller.add("a", leader);
+    controller.add("b", peer);
+    leader.interact({
+      center: [0.25, 0.75],
+      span: [0.4, 0.6],
+      screenPixelsPerImagePixel: 0.5,
+    });
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    leader.viewport.mockReturnValue({
+      center: [0.25, 0.75],
+      span: [0.4, 0.6],
+      screenPixelsPerImagePixel: 0.5,
+    });
+    leader.applied.mockClear();
+    peer.applied.mockClear();
+
+    controller.panBy(0.1, -0.2);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(controller.state.center[0]).toBeCloseTo(0.29);
+    expect(controller.state.center[1]).toBeCloseTo(0.63);
+    const expectedCenter = [expect.closeTo(0.29), expect.closeTo(0.63)];
+    expect(leader.applied).toHaveBeenCalledWith(expectedCenter, [0.4, 0.6]);
+    expect(peer.applied).toHaveBeenCalledWith(expectedCenter, [0.4, 0.6]);
     controller.destroy();
   });
 

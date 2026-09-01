@@ -154,6 +154,7 @@ test("two-photo groups preserve controls and expose an accessible comparison sli
   ]);
 
   await expect(page.getByRole("heading", { name: "Comparison group" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "camcomp home" })).toHaveCount(0);
   await expect(page.getByText("32 × 32")).toHaveCount(2);
 
   const workspace = await page.locator(".viewer-shell").boundingBox();

@@ -71,21 +71,23 @@
   <title>camcomp · local photo comparison</title>
 </svelte:head>
 
-<header class:comparison={state.phase === "ready"} class="app-header">
-  <a
-    href="./"
-    aria-label="camcomp home"
-    onclick={(event) => {
-      event.preventDefault();
-      controller.reset();
-    }}
-  >
-    <span class="mark" aria-hidden="true"></span>
-    <h1>camcomp</h1>
-  </a>
-  <p>Local photo comparison</p>
-  <span class="privacy">No uploads</span>
-</header>
+{#if state.phase !== "ready"}
+  <header class="app-header">
+    <a
+      href="./"
+      aria-label="camcomp home"
+      onclick={(event) => {
+        event.preventDefault();
+        controller.reset();
+      }}
+    >
+      <span class="mark" aria-hidden="true"></span>
+      <h1>camcomp</h1>
+    </a>
+    <p>Local photo comparison</p>
+    <span class="privacy">No uploads</span>
+  </header>
+{/if}
 
 <div class="status sr-only" role="status" aria-live="polite">{state.phase}</div>
 
@@ -174,23 +176,6 @@
     border-bottom: 1px solid var(--border);
     background: color-mix(in srgb, var(--surface) 94%, transparent);
   }
-  .app-header.comparison {
-    position: fixed;
-    z-index: 40;
-    top: 0;
-    right: 0;
-    left: 0;
-    opacity: 0;
-    transform: translateY(-0.5rem);
-    transition:
-      opacity 160ms ease,
-      transform 160ms ease;
-  }
-  .app-header.comparison:hover,
-  .app-header.comparison:focus-within {
-    opacity: 1;
-    transform: none;
-  }
   .app-header a {
     display: flex;
     align-items: center;
@@ -247,10 +232,5 @@
     border-top: 1px solid var(--border);
     color: var(--muted);
     font-size: 0.75rem;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .app-header.comparison {
-      transition: none;
-    }
   }
 </style>
