@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import AlbumShell from "../src/components/AlbumShell.svelte";
 import GroupViewer from "../src/components/GroupViewer.svelte";
 import ImportPanel from "../src/components/ImportPanel.svelte";
@@ -44,6 +44,8 @@ const selection: SourceSelection = {
   hasAnalysis: true,
   needsReauthorization: false,
 };
+
+afterEach(() => cleanup());
 
 describe("import interface", () => {
   it("exposes keyboard-reachable acquisition actions and local capability details", async () => {
@@ -118,6 +120,63 @@ describe("high-memory HEIC confirmation", () => {
   });
 });
 
+describe("photo details", () => {
+  it("shows structured native errors without stringifying the object", async () => {
+    render(PhotoFrame, {
+      photo: validPhoto(),
+      controller: new NavigationController({ anchorPhotoId: "photo-a" }),
+      resolveSource: vi
+        .fn()
+        .mockRejectedValue({ code: "io", message: "The source photo could not be opened." }),
+      releaseSource: vi.fn(),
+      alignmentStatus: "Anchor",
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Missing source: The source photo could not be opened.",
+    );
+    expect(screen.queryByText(/\[object Object\]/u)).not.toBeInTheDocument();
+  });
+
+  it("exposes complete values for every ellipsized photo field", async () => {
+    const photo = validPhoto();
+    photo.path = "photos/a-very-long-comparison-photo-name.jpg";
+    photo.metadata.effectiveFocalLength35mm = 23;
+    photo.metadata.cameraMake = "OPPO";
+    photo.metadata.cameraModel = "Find X9 Pro Ultra Long Camera Name";
+    const resolved: ResolvedPhotoSource = {
+      photoId: photo.id,
+      sourceKind: "exact",
+      displayUrl: "blob:photo",
+      originalPath: photo.path,
+      displayPath: photo.path,
+      warnings: [],
+      displayDynamicRange: { kind: "sdr" },
+      jpegGainMapRuntimeCapability: "native-supported",
+      release: vi.fn(),
+    };
+    const alignmentStatus = "direct-pair · 93% · detailed alignment provenance";
+    const rendered = render(PhotoFrame, {
+      photo,
+      controller: new NavigationController({ anchorPhotoId: photo.id }),
+      resolveSource: vi.fn().mockResolvedValue(resolved),
+      releaseSource: vi.fn(),
+      alignmentStatus,
+    });
+
+    expect(
+      await rendered.findByRole("heading", { name: "a-very-long-comparison-photo-name.jpg" }),
+    ).toHaveAttribute("title", "a-very-long-comparison-photo-name.jpg");
+    expect(rendered.getByText(alignmentStatus)).toHaveAttribute("title", alignmentStatus);
+    expect(rendered.getByText("23 mm equivalent")).toHaveAttribute("title", "23 mm equivalent");
+    expect(rendered.getByText("4 × 3")).toHaveAttribute("title", "4 × 3");
+    expect(rendered.getByText("OPPO Find X9 Pro Ultra Long Camera Name")).toHaveAttribute(
+      "title",
+      "OPPO Find X9 Pro Ultra Long Camera Name",
+    );
+  });
+});
+
 describe("HDR presentation", () => {
   it("shows the computed status and removes the display listener on destroy", async () => {
     const addEventListener = vi.fn();
@@ -133,7 +192,7 @@ describe("HDR presentation", () => {
       displayUrl: "blob:hdr",
       originalPath: "a.jpg",
       displayPath: "a.jpg",
-      warnings: [],
+      warnings: ["HDR metadata unverified"],
       displayDynamicRange: {
         kind: "jpeg-gain-map",
         encoding: "ultra-hdr-v1",
@@ -149,7 +208,15 @@ describe("HDR presentation", () => {
       releaseSource: vi.fn(),
       alignmentStatus: "Anchor",
     });
-    expect(await rendered.findByText("HDR path active")).toBeVisible();
+    const statusMessage = await rendered.findByText("HDR path active");
+    const statusPopover = statusMessage.closest(".status-popover");
+    expect(statusPopover).not.toBeNull();
+    expect(statusPopover).toHaveStyle({ position: "fixed" });
+    expect(
+      rendered.getByRole("button", {
+        name: /photo status: hdr path active hdr metadata unverified/i,
+      }),
+    ).toBeVisible();
     const details = rendered.getByRole("heading", { name: "a.jpg" }).closest(".photo-details");
     expect(details).not.toBeNull();
     expect(details).toHaveTextContent("Anchor");
@@ -182,6 +249,8 @@ describe("HDR presentation", () => {
     const album = normalizeAnalysisAlbum(document);
     const modeChange = vi.fn();
     const pixelZoom = vi.spyOn(NavigationController.prototype, "zoomToPixelRatio");
+    const pan = vi.spyOn(NavigationController.prototype, "panBy");
+    const zoom = vi.spyOn(NavigationController.prototype, "zoomBy");
     vi.stubGlobal(
       "ResizeObserver",
       class {
@@ -204,7 +273,15 @@ describe("HDR presentation", () => {
     await fireEvent.click(screen.getByRole("button", { name: "200%" }));
     expect(pixelZoom).toHaveBeenNthCalledWith(1, 1);
     expect(pixelZoom).toHaveBeenNthCalledWith(2, 2);
+    await fireEvent.keyDown(window, { key: "ArrowLeft" });
+    await fireEvent.keyDown(window, { key: "+" });
+    expect(pan).toHaveBeenCalledWith(-0.1, 0);
+    expect(zoom).toHaveBeenCalledWith(1.25);
+    await fireEvent.keyDown(screen.getByLabelText("Navigation"), { key: "ArrowRight" });
+    expect(pan).toHaveBeenCalledTimes(1);
     pixelZoom.mockRestore();
+    pan.mockRestore();
+    zoom.mockRestore();
     vi.unstubAllGlobals();
   });
 });
@@ -226,7 +303,7 @@ describe("album result", () => {
     expect(screen.getByRole("heading", { name: "No comparison groups" })).toBeVisible();
   });
 
-  it("sorts groups by capture time and separates capture days", () => {
+  it("sorts groups by capture time and separates capture days", async () => {
     const document = validAnalysisDocument();
     const groupFixtures = [
       { id: "next", correctedAt: "2026-08-23T09:00:00Z" },
@@ -250,6 +327,7 @@ describe("album result", () => {
       id: `group-${id}`,
       anchorPhotoId: `photo-${id}-a`,
       photoIds: [`photo-${id}-a`, `photo-${id}-b`],
+      flags: id === "early" ? ["near-threshold"] : undefined,
       evidence: {
         compatibleMemberPairs: 0,
         incompatibleMemberPairs: 0,
@@ -290,8 +368,16 @@ describe("album result", () => {
     expect(rendered.container.querySelectorAll(".group-day")).toHaveLength(3);
     expect(rendered.container.querySelectorAll(".group-button .group-row")).toHaveLength(8);
     expect(screen.getByText("24 mm eq.")).toBeVisible();
+    expect(screen.getByText("near-threshold")).toHaveAttribute("title", "near-threshold");
     expect(screen.getAllByText("Focal unavailable")).toHaveLength(3);
     expect(screen.getByText("Time unavailable")).toBeVisible();
+
+    await fireEvent.keyDown(window, { key: "PageDown" });
+    expect(screen.getByRole("heading", { name: "late-a.jpg" })).toBeVisible();
+    await fireEvent.keyDown(window, { key: " " });
+    expect(screen.getByRole("heading", { name: "next-a.jpg" })).toBeVisible();
+    await fireEvent.keyDown(window, { key: "PageUp" });
+    expect(screen.getByRole("heading", { name: "late-a.jpg" })).toBeVisible();
     vi.unstubAllGlobals();
   });
 });

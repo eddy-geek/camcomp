@@ -173,6 +173,18 @@ test("two-photo groups preserve controls and expose an accessible comparison sli
   );
   expect(frames[0]!.right).toBe(frames[1]!.left);
 
+  const statusIndicator = page.locator(".status-indicator").first();
+  await expect(statusIndicator).toBeVisible();
+  await statusIndicator.hover();
+  const statusPopover = statusIndicator.locator(".status-popover");
+  await expect(statusPopover).toBeVisible();
+  const popoverBounds = await statusPopover.boundingBox();
+  expect(popoverBounds).not.toBeNull();
+  expect(popoverBounds!.x).toBeGreaterThanOrEqual(0);
+  expect(popoverBounds!.y).toBeGreaterThanOrEqual(0);
+  expect(popoverBounds!.x + popoverBounds!.width).toBeLessThanOrEqual(viewport!.width);
+  expect(popoverBounds!.y + popoverBounds!.height).toBeLessThanOrEqual(viewport!.height);
+
   await expect(page.locator(".viewer-toolbar")).toHaveCSS("opacity", "0", { timeout: 3_000 });
   await expect(page.locator(".viewer-toolbar")).toHaveCSS("pointer-events", "none");
   const collapsedSidebar = await page.locator(".album-sidebar").boundingBox();

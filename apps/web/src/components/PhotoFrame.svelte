@@ -39,6 +39,10 @@
   let mediaQuery: MediaQueryList | undefined;
   let presentationStatus: HdrPresentationStatus | undefined;
   let reportedStatus: HdrPresentationStatus | undefined;
+  let statusIndicator: HTMLButtonElement | undefined;
+  let statusPopover: HTMLSpanElement | undefined;
+  let statusPopoverLeft = 0;
+  let statusPopoverTop = 0;
 
   onMount(() => {
     if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
@@ -59,6 +63,12 @@
       )
     : undefined;
   $: if (presentationStatus) notifyStatusChange(presentationStatus);
+  $: statusMessages = [
+    presentationStatus
+      ? presentationStatusText(presentationStatus, source?.jpegGainMapRuntimeCapability)
+      : undefined,
+    ...(source?.warnings ?? []),
+  ].filter((message): message is string => Boolean(message));
 
   function notifyStatusChange(status: HdrPresentationStatus): void {
     if (status === reportedStatus) return;
@@ -95,11 +105,23 @@
       if (isHighMemoryConfirmation(reason)) {
         highMemoryWarning = reason.message;
       } else {
-        error = reason instanceof Error ? reason.message : String(reason);
+        error = errorMessage(reason);
       }
     } finally {
       if (sequence === loadSequence) loading = false;
     }
+  }
+
+  function errorMessage(reason: unknown): string {
+    if (reason == null) return "The photo source could not be opened.";
+    if (reason instanceof Error && reason.message) return reason.message;
+    if (typeof reason === "object" && reason !== null) {
+      const message = (reason as { message?: unknown }).message;
+      if (typeof message === "string" && message) return message;
+      return "The photo source could not be opened.";
+    }
+    const message = String(reason);
+    return message || "The photo source could not be opened.";
   }
 
   function isHighMemoryConfirmation(
@@ -141,6 +163,22 @@
     return value || "Unavailable";
   }
 
+  function placeStatusPopover(): void {
+    if (!statusIndicator || !statusPopover || typeof window === "undefined") return;
+    const indicator = statusIndicator.getBoundingClientRect();
+    const width = statusPopover.offsetWidth;
+    const height = statusPopover.offsetHeight;
+    statusPopoverLeft = Math.min(
+      Math.max(indicator.right - width, 8),
+      Math.max(8, window.innerWidth - width - 8),
+    );
+    const above = indicator.top - height - 6;
+    statusPopoverTop =
+      above >= 8
+        ? above
+        : Math.min(indicator.bottom + 6, Math.max(8, window.innerHeight - height - 8));
+  }
+
   function formatNumber(value: number): string {
     return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value);
   }
@@ -149,6 +187,8 @@
     return status === "unverified-runtime" || status === "unverified-source" ? "HDR?" : "HDR";
   }
 </script>
+
+<svelte:window onresize={placeStatusPopover} />
 
 <article class="photo-frame" aria-labelledby={`photo-${photo.id}`}>
   <div class="viewer" bind:this={viewerElement}>
@@ -165,8 +205,10 @@
   <div class="photo-details photo-chrome">
     <header class="photo-heading">
       <div>
-        <h3 id={`photo-${photo.id}`}>{photo.path.split("/").at(-1)}</h3>
-        <span>{alignmentStatus}</span>
+        <h3 id={`photo-${photo.id}`} title={photo.path.split("/").at(-1)}>
+          {photo.path.split("/").at(-1)}
+        </h3>
+        <span title={alignmentStatus}>{alignmentStatus}</span>
       </div>
       <div class="badges">
         {#if source?.sourceKind === "sidecar"}<strong class="warning">Sidecar</strong>{/if}
@@ -174,30 +216,44 @@
         {#if presentationStatus && presentationStatus !== "sdr-source"}
           <strong class="hdr-badge">{presentationStatusBadge(presentationStatus)}</strong>
         {/if}
+        {#if statusMessages.length}
+          <button
+            bind:this={statusIndicator}
+            type="button"
+            class="status-indicator"
+            aria-label={`Photo status: ${statusMessages.join(" ")}`}
+            aria-describedby={`photo-status-${photo.id}`}
+            onmouseenter={placeStatusPopover}
+            onfocus={placeStatusPopover}
+          >
+            <span aria-hidden="true">!</span>
+            <span
+              bind:this={statusPopover}
+              id={`photo-status-${photo.id}`}
+              class="status-popover"
+              role="status"
+              style={`position: fixed; left: ${statusPopoverLeft}px; top: ${statusPopoverTop}px;`}
+            >
+              {#each statusMessages as message (message)}<span>{message}</span>{/each}
+            </span>
+          </button>
+        {/if}
       </div>
     </header>
-    {#if presentationStatus && presentationStatusText(presentationStatus, source?.jpegGainMapRuntimeCapability)}
-      <p class="hdr-status" role="status">
-        {presentationStatusText(presentationStatus, source?.jpegGainMapRuntimeCapability)}
-      </p>
-    {/if}
-    {#if source?.warnings.length}
-      <ul class="warnings">
-        {#each source.warnings as warning (warning)}<li>{warning}</li>{/each}
-      </ul>
-    {/if}
     <dl>
       <div>
         <dt>Focal length</dt>
-        <dd>{focalLabel()}</dd>
+        <dd title={focalLabel()}>{focalLabel()}</dd>
       </div>
       <div>
         <dt>Resolution</dt>
-        <dd>{photo.dimensions.oriented[0]} × {photo.dimensions.oriented[1]}</dd>
+        <dd title={`${photo.dimensions.oriented[0]} × ${photo.dimensions.oriented[1]}`}>
+          {photo.dimensions.oriented[0]} × {photo.dimensions.oriented[1]}
+        </dd>
       </div>
       <div>
         <dt>Camera</dt>
-        <dd>{cameraLabel()}</dd>
+        <dd title={cameraLabel()}>{cameraLabel()}</dd>
       </div>
     </dl>
   </div>
@@ -218,9 +274,8 @@
     min-width: 0;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.65rem 0.8rem;
-    border-bottom: 1px solid var(--border);
+    gap: 0.4rem;
+    padding: 0.35rem 0.5rem;
   }
   .photo-heading > div:first-child {
     min-width: 0;
@@ -228,7 +283,8 @@
   .badges {
     display: flex;
     flex: none;
-    gap: 0.45rem;
+    align-items: center;
+    gap: 0.3rem;
   }
   .photo-chrome {
     opacity: 1;
@@ -291,49 +347,93 @@
   .photo-details {
     position: absolute;
     z-index: 4;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    max-height: 50%;
-    overflow: auto;
-    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    right: 0.25rem;
+    bottom: 0.25rem;
+    left: 0.25rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 1.7fr);
+    align-items: center;
+    border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+    border-radius: 0.35rem;
+    background: color-mix(in srgb, var(--surface) 68%, transparent);
   }
   dl {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.5rem;
+    gap: 0.35rem;
     margin: 0;
-    padding: 0.7rem 0.8rem;
+    padding: 0.35rem 0.5rem;
   }
   dt {
     color: var(--muted);
-    font-size: 0.68rem;
+    font-size: 0.58rem;
+    line-height: 1;
     text-transform: uppercase;
   }
   dd {
-    margin: 0.15rem 0 0;
-    font-size: 0.78rem;
+    margin: 0.1rem 0 0;
+    overflow: hidden;
+    font-size: 0.68rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .warning,
   .hdr-badge {
     color: var(--orange);
-    font-size: 0.72rem;
+    font-size: 0.65rem;
   }
-  .hdr-status {
-    margin: 0;
-    padding: 0.45rem 0.8rem;
+  .status-indicator {
+    position: relative;
+    display: grid;
+    width: 1.3rem;
+    min-width: 1.3rem;
+    height: 1.3rem;
+    min-height: 1.3rem;
+    padding: 0;
+    place-items: center;
+    border-color: var(--orange);
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--orange) 14%, transparent);
     color: var(--orange);
-    font-size: 0.76rem;
+    font-size: 0.75rem;
+    font-weight: 800;
   }
-  .warnings {
-    margin: 0;
-    padding: 0.45rem 1.5rem;
-    color: var(--orange);
-    font-size: 0.72rem;
+  .status-popover {
+    position: fixed;
+    z-index: 60;
+    display: grid;
+    width: max-content;
+    max-width: min(24rem, 70vw);
+    gap: 0.25rem;
+    padding: 0.45rem 0.55rem;
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    box-shadow: 0 0.4rem 1.2rem #0008;
+    color: var(--text);
+    font-size: 0.7rem;
+    font-weight: 400;
+    line-height: 1.3;
+    opacity: 0;
+    overflow-wrap: anywhere;
+    pointer-events: none;
+    text-align: left;
+    transform: translateY(0.2rem);
+    transition:
+      opacity 120ms ease,
+      transform 120ms ease;
+  }
+  .status-indicator:hover .status-popover,
+  .status-indicator:focus-visible .status-popover {
+    opacity: 1;
+    transform: none;
   }
   @media (max-width: 650px) {
-    dl {
+    .photo-details {
       grid-template-columns: 1fr;
+    }
+    dl {
+      border-top: 1px solid var(--border);
     }
   }
   @media (prefers-reduced-motion: reduce) {
