@@ -153,6 +153,20 @@ describe("JPEG gain-map inspection", () => {
   });
 });
 
+describe("Tauri JPEG gain-map transport", () => {
+  it("allows the scoped local asset URL to be inspected through fetch", () => {
+    const configuration = JSON.parse(
+      readFileSync(resolve(process.cwd(), "../desktop/src-tauri/tauri.conf.json"), "utf8"),
+    ) as { app?: { security?: { csp?: string } } };
+    const connectSource = configuration.app?.security?.csp
+      ?.split(";")
+      .find((directive) => directive.trim().startsWith("connect-src "));
+
+    expect(connectSource).toMatch(/(?:^|\s)asset:(?:\s|$)/u);
+    expect(connectSource).toContain("http://asset.localhost");
+  });
+});
+
 describe("JPEG gain-map runtime and presentation policy", () => {
   it("centralizes browser-family policy and keeps unknown/Tauri unverified", () => {
     expect(
