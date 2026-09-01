@@ -163,9 +163,10 @@ depend on `web:build`, making the combined check deterministic.
 
 ### 2.12 Comparison chrome must not resize or obstruct the viewer
 
-The ready album now fills the webview with gapless image cells. App, group, photo, EXIF,
-and slider chrome are overlays that auto-hide after pointer inactivity; the group sidebar
-collapses to a left-edge activation rail and expands on hover or keyboard focus. Hidden
+The ready album now fills the webview with gapless image cells; its application header
+and footer are omitted. Group, photo, EXIF, and slider chrome are overlays that auto-hide
+after pointer inactivity; the group sidebar collapses to a left-edge activation rail and
+expands on hover or keyboard focus. Hidden
 overlays do not participate in layout or intercept image gestures. Focus retained by an
 OpenSeadragon canvas does not keep that photo's informational chrome visible; only focus
 inside an actual control can override inactivity hiding.

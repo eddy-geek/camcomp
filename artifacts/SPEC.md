@@ -253,10 +253,11 @@ The UI shall expose alignment confidence and avoid abrupt viewport jumps when a 
 
 ### 7.4 Drop 3 comparison viewer
 
-The ready comparison shall use the complete webview for gapless image cells. Navigation,
-photo metadata, and application controls shall be non-sizing overlays that hide after
-pointer inactivity; the group list shall collapse to a left-edge rail and expand on hover
-or keyboard focus. Hidden overlays shall not intercept image gestures. Focus retained by
+The ready comparison shall use the complete webview for gapless image cells. The
+application header shall be omitted while comparison is active. Navigation, photo
+metadata, and comparison controls shall be non-sizing overlays that hide after pointer
+inactivity; the group list shall collapse to a left-edge rail and expand on hover or
+keyboard focus. Hidden overlays shall not intercept image gestures. Focus retained by
 an image viewer shall not reveal informational chrome; focus within an actual control may
 keep that control visible.
 

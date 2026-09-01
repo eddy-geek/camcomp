@@ -224,3 +224,38 @@ I have issues with the group comparison display
 
 ---
 bug: part of the chrome is not hidden, see screenshot - middle picture in of 3 in this case
+
+---
+remove the top overlay showing mostly just 'camcomp' title. it prevent clicking the controls under it
+
+---
+start from @README.md .
+heic decoding in the tauri version is very slow, it takes 100% CPU during 40 seconds to decode 1 image then moves to next one!
+can you investigate
+- parallel handling when multiple images in a group
+- multithreaded decode
+- GPU acceleration 
+feel free to reconsider the heic library used.
+you may as well profile to figure out the bottlenecks.
+
+---
+start from README. in the UI, comparison page, left overlay with all groups, groups should be shown in sorted time order, with a clear separator when there are different days, and time clearly indicated below the group.
+also put all the per-picture metadata at the bottom instead of the current split split title-on-top/exif-at-the-bottom
+at the end commit just your work
+
+
+---
+* add hotkeys eg arrows to pan, pgup/dn  for prev/next group, and space for next group, +/- for zoom in/out
+* look at screenshot, the chrome is too opaque and takes too much space esp. at the bottom, make it more compact, HDR/EXIF warning can also be mouse over a simple warning icon
+* update needed md files and commit
+
+---
+start from README. in the UI, comparison page, left overlay with all groups,  make it more dense and useful : add focal length of the anchor picture ; and fit things in 2 lines, remove separator and give it a flatter light look. commit
+
+---
+start from README.md ; in the UI, comparison page, I have issues 
+ [1] HDR metadata detection 
+ [2] 'Missing source: object object'
+look at ./data/camcomp.json group 132 for an example
+also, popups are truncated and I woul like popups on all truncated text field
+most issues are visible in attached screenshot of group 132
