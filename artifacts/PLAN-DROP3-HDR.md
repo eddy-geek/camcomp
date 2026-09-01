@@ -912,7 +912,7 @@ do not weaken parser validation to force a positive status.
 - [ ] Grid, slider, fit, zoom, aligned navigation, remount, cleanup, and HEIC regression pass.
 - [ ] Firefox displays a persistent SDR fallback only for detected gain-map JPEGs.
 - [ ] SDR-display, forced-SDR, active-path, and unverified-runtime states are covered.
-- [ ] No HEIC fixture is classified or claimed as HDR.
+- [ ] No HEIC fixture is claimed as verified HDR; macOS native pass-through remains explicitly unverified.
 - [ ] Formatting, lint, typecheck, unit/component tests, E2E, builds, contracts, Tauri check, and `mise run check` pass.
 
 ### Manual
@@ -933,7 +933,49 @@ do not weaken parser validation to force a positive status.
 - [ ] HEIC remains documented as SDR/current-display support, not HDR support.
 - [ ] Known limitations distinguish source HDR, renderer path, runtime codec, and display headroom.
 
-## 15. Requirement traceability
+## 15. Follow-up: macOS Tauri WKWebView HEIC preservation
+
+The original Drop 3 plan deferred HEIC HDR because the portable `heif-oxide` path
+returns a flattened display-ready sRGB raster and cannot expose or encode HEIF HDR
+auxiliary images. The requested target is specifically the macOS Tauri WebView, not
+Google Chrome's desktop decoder. For that target, the better solution is to avoid an
+intermediate altogether: preserve the original HEIC and let macOS WKWebView's native
+HTML image decoder/compositor handle any intrinsic HDR or auxiliary gain-map rendition.
+A JPEG Ultra HDR intermediate is not a safe substitute because converting the
+`heif-oxide` raster to JPEG loses the HEIF HDR relationship, while implementing a
+correct HEIF-to-Ultra-HDR encoder would require color, transfer, auxiliary-image, and
+gain-map semantics not exposed by the pinned decoder.
+
+### 15.1 Implementation decisions
+
+1. On macOS Tauri, select a validated original HEIC as the display source before
+   sidecar/`heif-oxide` conversion. Do not rewrite the source or create a JPEG/PNG
+   derivative for this path.
+2. Keep the OpenSeadragon HTML drawer and original asset URL so WKWebView receives an
+   actual `<img>` source rather than a Canvas/WebGL surface.
+3. Preserve the existing sidecar and application-cache SDR fallbacks for other Tauri
+   targets. A future packaged-runtime failure path may add an explicit retry to those
+   fallbacks; this change does not silently transcode after WKWebView rejects the
+   original. Their warnings must continue to identify that they are substitutes/SDR
+   derivatives.
+4. Keep Tauri's runtime capability `unverified` until a packaged macOS WKWebView test
+   on named HDR hardware confirms direct-image parity. Native HEIC pass-through is an
+   HDR-capable candidate, not an automatic `HDR path active` claim.
+5. Add a transient display-source kind/status sufficient to distinguish original HEIC
+   pass-through from decoded SDR output. Do not add HEIC HDR fields to `camcomp.json`.
+6. Test source selection and fallback policy in Rust, test the shared HTML image path
+   in WebKit E2E, and retain the existing two-photo decode gate for fallback decodes.
+
+### 15.2 Acceptance and limits
+
+Automated tests can prove that macOS Tauri chooses the original HEIC path, does not
+write a cache derivative on that path, and keeps the image in an HTML `<img>`. They
+cannot prove HDR luminance in headless WebKit. Gate M3 must therefore record the macOS
+version, WKWebView build, GPU/display, HDR setting, direct `<img>` comparison, grid,
+zoom, slider, remount, and `Compare in SDR` behavior. Until that evidence exists, the
+UI must say that native HEIC HDR output is unverified rather than claiming SDR or HDR.
+
+## 16. Requirement traceability
 
 | Accepted ADR requirement                     | Plan coverage                         |
 | -------------------------------------------- | ------------------------------------- |

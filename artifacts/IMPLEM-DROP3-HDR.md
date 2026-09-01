@@ -71,4 +71,4 @@ behavior.
 - M4 two-to-four-photo memory, interaction, and cleanup measurements;
 - a real externally generated dual Ultra HDR v1 plus ISO 21496-1 fixture.
 
-Until those gates are recorded, the application must use `HDR output unverified in this desktop runtime` where the runtime policy cannot establish native output, and documentation must not claim physical HDR luminance or packaged Tauri HDR support. HEIC remains current wide-gamut SDR display support, not an HDR implementation.
+Until those gates are recorded, the application must use `HDR output unverified in this desktop runtime` where the runtime policy cannot establish native output, and documentation must not claim physical HDR luminance or packaged Tauri HDR support. On macOS Tauri, the original HEIC now reaches WKWebView's HTML image path without an SDR cache conversion; this is a preservation path, not yet verified HDR output. Non-macOS Tauri fallback remains current wide-gamut SDR display support, not an HDR implementation.

@@ -48,11 +48,13 @@ All 18 HEIC files in the repository's complete current corpus were inspected wit
 ICC profile; none reports PQ/HLG transfer signaling, an HDR/gain-map marker, or an
 alpha/depth/HDR auxiliary channel. They are confirmed wide-gamut SDR for this delivery.
 
-The accepted implementation scope is therefore **JPEG gain-map HDR only**. Existing
-HEIC display and SDR conversion behavior remains unchanged. HEIC HDR detection,
-rendering, conversion, fixtures, and Gate H3 are deferred until an actual HDR HEIC
-requirement appears. The HEIC audit remains in this document to prevent a future
-implementation from mistaking the current PNG paths for HDR-capable paths.
+The accepted implementation scope is therefore **JPEG gain-map HDR plus macOS
+Tauri HEIC preservation**. Existing non-macOS HEIC display and SDR conversion behavior
+remains unchanged. On macOS Tauri, the original HEIC may now reach WKWebView's native
+HTML image path without a PNG/JPEG intermediate; packaged HDR rendering remains
+unverified until Gate M3 passes. HEIC HDR extraction, conversion, and cross-platform
+fixtures remain deferred. The HEIC audit remains in this document to prevent the
+portable `heif-oxide` PNG path from being mistaken for HDR-capable output.
 
 ## 2. Terminology and required invariants
 

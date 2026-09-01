@@ -155,11 +155,13 @@ Read `artifacts/IMPLEM-DROP1.md` before trusting a threshold. The short version:
   dimension-matched same-stem JPEG/PNG sidecar, then offer an explicit high-memory
   lossless worker decode. A 50 MP worker decode measured about 2.1 GiB peak RAM, so
   it never starts without confirmation; Tauri remains the lower-risk fallback.
-- Tauri HEIC display uses `heif-oxide`, resolves up to two distinct uncached photos
-  concurrently, and writes digest-keyed SDR PNGs only to application cache storage. PNG
-  encoding is lossless, but HDR HEIF output is not preserved. Files whose `.heic` suffix
-  contains JPEG data display directly by detected content. Duplicate requests share the
-  same cache result; the source folder is never modified.
+- On macOS, Tauri preserves the original HEIC for the WKWebView HTML image path, so a
+  native HDR HEIF rendition can reach the platform compositor without a lossy/flattening
+  intermediate; packaged macOS HDR output remains unverified. Other Tauri targets use
+  `heif-oxide` and write digest-keyed SDR PNGs only to application cache storage. PNG
+  encoding is lossless, but it does not preserve HDR HEIF output. Files whose `.heic`
+  suffix contains JPEG data display directly by detected content. Duplicate fallback
+  requests share the same cache result; the source folder is never modified.
 
 ## Documents
 

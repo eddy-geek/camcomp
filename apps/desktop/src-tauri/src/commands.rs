@@ -125,7 +125,7 @@ pub struct PreflightResponse {
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum PhotoSourceKind {
-    /// The acquired JPEG or PNG itself.
+    /// The acquired JPEG, PNG, or macOS-native HEIC itself.
     Native,
     /// A dimension-matching same-directory JPEG or PNG substitute.
     Sidecar,
@@ -880,16 +880,33 @@ fn resolve_photo_source_sync(
             (PhotoSourceKind::Native, original.clone(), Vec::new())
         }
         SourceFormat::Heif => {
-            let (sidecar, mut warnings) = find_sidecar(&root, &original, expected);
-            if let Some(sidecar) = sidecar {
-                (PhotoSourceKind::Sidecar, sidecar, warnings)
-            } else {
-                let decoded = decode_heic_to_cache(app, &original, photo)?;
-                warnings.push(
-                    "Decoded the HEIC source to an SDR PNG in application cache storage."
-                        .to_string(),
-                );
-                (PhotoSourceKind::Decoded, decoded, warnings)
+            #[cfg(target_os = "macos")]
+            {
+                // WKWebView can decode HEIC natively. Preserve the original so any
+                // intrinsic HDR or auxiliary gain-map rendition reaches the HTML
+                // image compositor instead of being flattened by heif-oxide.
+                (
+                    PhotoSourceKind::Native,
+                    original.clone(),
+                    vec![
+                        "Using the original HEIC in macOS WKWebView; native HDR output is unverified."
+                            .to_string(),
+                    ],
+                )
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let (sidecar, mut warnings) = find_sidecar(&root, &original, expected);
+                if let Some(sidecar) = sidecar {
+                    (PhotoSourceKind::Sidecar, sidecar, warnings)
+                } else {
+                    let decoded = decode_heic_to_cache(app, &original, photo)?;
+                    warnings.push(
+                        "Decoded the HEIC source to an SDR PNG in application cache storage."
+                            .to_string(),
+                    );
+                    (PhotoSourceKind::Decoded, decoded, warnings)
+                }
             }
         }
     };

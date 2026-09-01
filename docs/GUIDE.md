@@ -436,14 +436,15 @@ Sidecar use is always labelled because compression, color, crop, or content can 
 The browser worker uses SDR PNG output with lossless encoding, runs one decode at a time,
 cancels when the album closes, and rejects images above 60 MP. A representative 50 MP
 comparison measured about 2 GiB extra Chromium RAM; other applications may become less
-responsive. Tauri remains the lower-memory fallback and decodes HEIC off the UI thread
-into a digest-keyed
-SDR PNG in application cache. The PNG encoding is lossless, but the current sRGB decode does
-not preserve an HDR HEIF rendition. It resolves at most two distinct uncached HEICs at
-once to improve group startup without allowing every group member to allocate a
-full-resolution decode simultaneously; duplicate requests for one source are serialized
-and reuse the completed cache entry. Neither path creates a display copy in the source
-folder. The browser worker's LGPL source and replacement information is available from
+responsive. macOS Tauri preserves the original HEIC for WKWebView's HTML image path so
+native HEIF HDR can remain available to the platform compositor; its packaged HDR output
+is still explicitly unverified. Other Tauri targets remain the lower-memory fallback and
+decode HEIC off the UI thread into a digest-keyed SDR PNG in application cache. The PNG
+encoding is lossless, but the current sRGB decode does not preserve an HDR HEIF rendition.
+The fallback resolves at most two distinct uncached HEICs at once; duplicate requests for
+one source are serialized and reuse the completed cache entry. Neither path creates a
+display copy in the source folder. The browser worker's LGPL source and replacement
+information is available from
 **Third-party notices** in the application footer.
 
 The installed PWA caches fingerprinted application-shell assets only. Selected photos,
