@@ -144,6 +144,7 @@ describe("photo details", () => {
     photo.metadata.effectiveFocalLength35mm = 23;
     photo.metadata.cameraMake = "OPPO";
     photo.metadata.cameraModel = "Find X9 Pro Ultra Long Camera Name";
+    photo.metadata.modeLabel = "master";
     const resolved: ResolvedPhotoSource = {
       photoId: photo.id,
       sourceKind: "exact",
@@ -174,6 +175,7 @@ describe("photo details", () => {
       "title",
       "OPPO Find X9 Pro Ultra Long Camera Name",
     );
+    expect(rendered.getByText("master")).toHaveAttribute("title", "master");
   });
 });
 

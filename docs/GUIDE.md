@@ -406,6 +406,7 @@ Each photo displays:
   applied that policy, then reported equivalent or physical focal length as fallbacks;
 - oriented resolution;
 - camera make and model;
+- detected shooting mode, including OPPO modes such as `master` and `hi-res`;
 - source substitution and alignment status.
 
 Use the mouse, trackpad, or the **Zoom in**, **Zoom out**, and **Fit all** controls. In

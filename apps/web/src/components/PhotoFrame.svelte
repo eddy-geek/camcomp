@@ -255,6 +255,12 @@
         <dt>Camera</dt>
         <dd title={cameraLabel()}>{cameraLabel()}</dd>
       </div>
+      <div>
+        <dt>Mode</dt>
+        <dd title={photo.metadata.modeLabel ?? "Unavailable"}>
+          {photo.metadata.modeLabel ?? "Unavailable"}
+        </dd>
+      </div>
     </dl>
   </div>
 </article>
@@ -359,7 +365,7 @@
   }
   dl {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.35rem;
     margin: 0;
     padding: 0.35rem 0.5rem;

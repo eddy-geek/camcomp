@@ -93,7 +93,7 @@ when available and recursive file input elsewhere. New analysis, incremental ref
 progress, cancellation, and atomic persistence are available through the Tauri app.
 
 The viewer lays out every group member, displays focal length, oriented resolution,
-and camera model, and synchronizes OpenSeadragon pan/zoom. Normalized navigation is
+camera model, and detected shooting mode, and synchronizes OpenSeadragon pan/zoom. Normalized navigation is
 always available; experimental aligned navigation maps through Drop 1's global
 homographies and shows deterministic per-photo fallback. Arrow keys pan, `+`/`-` zoom,
 Page Up/Page Down select adjacent groups, and Space advances to the next group. Two-photo
