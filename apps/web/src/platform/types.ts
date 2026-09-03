@@ -3,6 +3,7 @@ import type { DisplayDynamicRange } from "../sources/jpeg-hdr";
 import type { JpegGainMapRuntimeCapability } from "../viewer/hdr";
 
 export type RuntimeKind = "browser" | "tauri";
+export type ApplicationMenuAction = "open-folder" | "refresh";
 export type FolderAccessKind =
   "directory-handle" | "recursive-file-input" | "native-dialog" | "none";
 
@@ -86,7 +87,11 @@ export interface PlatformAdapter {
   chooseFolder(): Promise<SourceSelection | undefined>;
   chooseFiles(): Promise<SourceSelection | undefined>;
   acceptDrop(dataTransfer: DataTransfer): Promise<SourceSelection | undefined>;
-  listenForNativeDrops?(onSelection: (selection: SourceSelection) => void): Promise<() => void>;
+  listenForNativeDrops?(
+    onSelection: (selection: SourceSelection) => void,
+    onError?: (error: unknown) => void,
+  ): Promise<() => void>;
+  listenForApplicationMenu?(onAction: (action: ApplicationMenuAction) => void): Promise<() => void>;
   restorePersistedFolder(): Promise<SourceSelection | undefined>;
   clearRetainedData(): Promise<void>;
   reauthorize(selection: SourceSelection): Promise<SourceSelection>;

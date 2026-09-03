@@ -227,6 +227,13 @@ Genuine HEIF cache derivatives are sRGB PNGs and are explicitly labelled SDR. Th
 digest-keyed cache remains valid across this correction; no cache cleanup or source-folder
 write is required.
 
+### 2.15 Full-screen comparison needs native acquisition actions
+
+The comparison workspace retains its unobtrusive sidebar controls, while Tauri also exposes
+**File → Open…** with Command/Ctrl+O and **File → Refresh** with F5. Native menu events enter the
+same import controller paths as the visible controls, so refresh preserves incremental cache
+reuse and opening another folder retains the current album when the picker is cancelled.
+
 ## 3. Format and viewer decisions
 
 ### Gate A — non-native browser HEIC

@@ -123,4 +123,19 @@ describe("import state isolation", () => {
       expect.any(Object),
     );
   });
+
+  it("keeps the current album when opening another folder is cancelled", async () => {
+    const album = normalizeAnalysisAlbum(validAnalysisDocument());
+    const adapter = {
+      capabilities: { analysis: true },
+      chooseFolder: vi.fn().mockResolvedValue(undefined),
+      loadAnalysis: vi.fn().mockResolvedValue(album),
+      releaseSelection: vi.fn(),
+    } as unknown as PlatformAdapter;
+    const controller = new ImportController(adapter);
+    await controller.acquire(async () => cachedSelection);
+    await controller.chooseFolder();
+    expect(controller.state).toMatchObject({ phase: "ready", selection: cachedSelection });
+    expect(adapter.releaseSelection).not.toHaveBeenCalled();
+  });
 });

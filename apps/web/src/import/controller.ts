@@ -29,7 +29,16 @@ export class ImportController {
   }
 
   async chooseFolder(): Promise<void> {
-    await this.acquire(() => this.#platform.chooseFolder());
+    if (this.state.phase !== "ready") {
+      await this.acquire(() => this.#platform.chooseFolder());
+      return;
+    }
+    try {
+      const selection = await this.#platform.chooseFolder();
+      if (selection) await this.openSelection(selection);
+    } catch (error) {
+      this.reportError(error);
+    }
   }
 
   reportError(error: unknown): void {

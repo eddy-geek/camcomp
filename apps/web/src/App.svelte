@@ -7,7 +7,7 @@
   import { ImportController, initialImportState, type ImportState } from "./import";
   import {
     createPlatformAdapter,
-    type PlatformAdapter,
+    type ApplicationMenuAction,
     type ResolvedPhotoSource,
     type SourceSelection,
   } from "./platform";
@@ -16,21 +16,23 @@
   const controller = new ImportController(platform);
   let state: ImportState = initialImportState;
   let unlistenNativeDrop: (() => void) | undefined;
+  let unlistenApplicationMenu: (() => void) | undefined;
   const unsubscribe = controller.subscribe((next) => (state = next));
 
   onMount(async () => {
-    const native = platform as PlatformAdapter & {
-      listenForNativeDrops?: (
-        handler: (selection: SourceSelection) => void,
-        onError: (error: unknown) => void,
-      ) => Promise<() => void>;
-    };
-    if (native.listenForNativeDrops) {
+    if (platform.listenForNativeDrops) {
       try {
-        unlistenNativeDrop = await native.listenForNativeDrops(
+        unlistenNativeDrop = await platform.listenForNativeDrops(
           (selection) => void controller.openSelection(selection),
           (error) => controller.reportError(error),
         );
+      } catch (error) {
+        controller.reportError(error);
+      }
+    }
+    if (platform.listenForApplicationMenu) {
+      try {
+        unlistenApplicationMenu = await platform.listenForApplicationMenu(handleApplicationMenu);
       } catch (error) {
         controller.reportError(error);
       }
@@ -39,9 +41,18 @@
 
   onDestroy(() => {
     unlistenNativeDrop?.();
+    unlistenApplicationMenu?.();
     unsubscribe();
     controller.dispose();
   });
+
+  function handleApplicationMenu(action: ApplicationMenuAction): void {
+    if (action === "open-folder") {
+      void controller.chooseFolder();
+    } else if (state.phase === "ready" && platform.capabilities.analysis) {
+      void controller.refresh();
+    }
+  }
 
   async function restoreFolder(): Promise<void> {
     const selection = await platform.restorePersistedFolder();

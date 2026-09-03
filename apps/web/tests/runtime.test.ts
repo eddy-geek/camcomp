@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
+const eventMocks = vi.hoisted(() => ({ listen: vi.fn() }));
+
+vi.mock("@tauri-apps/api/event", () => eventMocks);
+
 import {
   createPlatformAdapter,
   detectBrowserCapabilities,
   detectRuntimeKind,
+  TauriPlatformAdapter,
 } from "../src/platform";
 import type { PlatformAdapter } from "../src/platform";
 
@@ -39,5 +44,21 @@ describe("runtime capability detection", () => {
     } as unknown as Window);
     expect(fallback.folderAccess).toBe("recursive-file-input");
     expect(chromium.folderAccess).toBe("directory-handle");
+  });
+
+  it("forwards valid native menu actions and ignores unknown payloads", async () => {
+    const unlisten = vi.fn();
+    const onAction = vi.fn();
+    eventMocks.listen.mockResolvedValue(unlisten);
+    const dispose = await new TauriPlatformAdapter().listenForApplicationMenu(onAction);
+    expect(eventMocks.listen).toHaveBeenCalledWith("camcomp://menu-action", expect.any(Function));
+    const handler = eventMocks.listen.mock.calls[0]?.[1] as
+      ((event: { payload: string }) => void) | undefined;
+    handler?.({ payload: "refresh" });
+    handler?.({ payload: "unknown" });
+    expect(onAction).toHaveBeenCalledOnce();
+    expect(onAction).toHaveBeenCalledWith("refresh");
+    dispose();
+    expect(unlisten).toHaveBeenCalledOnce();
   });
 });

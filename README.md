@@ -96,7 +96,8 @@ The viewer lays out every group member, displays focal length, oriented resoluti
 camera model, and detected shooting mode, and synchronizes OpenSeadragon pan/zoom. Normalized navigation is
 always available; experimental aligned navigation maps through Drop 1's global
 homographies and shows deterministic per-photo fallback. Arrow keys pan, `+`/`-` zoom,
-Page Up/Page Down select adjacent groups, and Space advances to the next group. Two-photo
+Page Up/Page Down select adjacent groups, and Space advances to the next group. In the desktop
+app, **File → Open…** selects another folder and F5 refreshes the current analysis. Two-photo
 groups can use a keyboard-accessible comparison slider.
 
 ## Repository layout

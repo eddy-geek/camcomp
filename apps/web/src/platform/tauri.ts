@@ -8,6 +8,7 @@ import type {
   AnalysisOptions,
   AnalysisProgressEvent,
   AnalysisRunCallbacks,
+  ApplicationMenuAction,
   PhotoResolutionOptions,
   PlatformAdapter,
   ResolvedPhotoSource,
@@ -105,6 +106,17 @@ export class TauriPlatformAdapter implements PlatformAdapter {
       }
     });
     return unlisten;
+  }
+
+  async listenForApplicationMenu(
+    onAction: (action: ApplicationMenuAction) => void,
+  ): Promise<() => void> {
+    const { listen } = await import("@tauri-apps/api/event");
+    return listen<ApplicationMenuAction>("camcomp://menu-action", (event) => {
+      if (event.payload === "open-folder" || event.payload === "refresh") {
+        onAction(event.payload);
+      }
+    });
   }
 
   async restorePersistedFolder(): Promise<undefined> {
