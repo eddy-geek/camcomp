@@ -169,16 +169,16 @@ Read `artifacts/IMPLEM-DROP1.md` before trusting a threshold. The short version:
 Start with the [user guide](docs/GUIDE.md) if you want to use camcomp. The rest are
 for working on it.
 
-| document | what it is for |
-|---|---|
-| [`docs/GUIDE.md`](docs/GUIDE.md) | how to use it, and what to do when a group is wrong |
-| [`artifacts/REQUIREMENTS.md`](artifacts/REQUIREMENTS.md) | what the product must do |
-| [`artifacts/SPEC.md`](artifacts/SPEC.md) | how Drop 1 does it |
-| [`artifacts/SPEC-OPPO.md`](artifacts/SPEC-OPPO.md) | OPPO metadata, mode, flash, and Pro XDR evidence |
-| [`artifacts/ADR-DROP1.md`](artifacts/ADR-DROP1.md) | why this stack |
-| [`artifacts/PLAN-DROP1.md`](artifacts/PLAN-DROP1.md) | Drop 1 implementation plan and gates |
-| [`artifacts/IMPLEM-DROP1.md`](artifacts/IMPLEM-DROP1.md) | Drop 1 implementation and measurements |
-| [`artifacts/PLAN-DROP2.md`](artifacts/PLAN-DROP2.md) | Drops 2 and 3.1 implementation plan and gates |
+| document                                                 | what it is for                                                         |
+| -------------------------------------------------------- | ---------------------------------------------------------------------- |
+| [`docs/GUIDE.md`](docs/GUIDE.md)                         | how to use it, and what to do when a group is wrong                    |
+| [`artifacts/REQUIREMENTS.md`](artifacts/REQUIREMENTS.md) | what the product must do                                               |
+| [`artifacts/SPEC.md`](artifacts/SPEC.md)                 | how Drop 1 does it                                                     |
+| [`artifacts/SPEC-OPPO.md`](artifacts/SPEC-OPPO.md)       | OPPO metadata, mode, flash, and Pro XDR evidence                       |
+| [`artifacts/ADR-DROP1.md`](artifacts/ADR-DROP1.md)       | why this stack                                                         |
+| [`artifacts/PLAN-DROP1.md`](artifacts/PLAN-DROP1.md)     | Drop 1 implementation plan and gates                                   |
+| [`artifacts/IMPLEM-DROP1.md`](artifacts/IMPLEM-DROP1.md) | Drop 1 implementation and measurements                                 |
+| [`artifacts/PLAN-DROP2.md`](artifacts/PLAN-DROP2.md)     | Drops 2 and 3.1 implementation plan and gates                          |
 | [`artifacts/IMPLEM-DROP2.md`](artifacts/IMPLEM-DROP2.md) | delivered UI, integration feedback, evidence, and pending manual gates |
 
 ## Licence

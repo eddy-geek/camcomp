@@ -263,3 +263,30 @@ most issues are visible in attached screenshot of group 132
 ---
 - I now have a clearer error message: 'Missing source: The HEIC source could not be decoded.' -> fix it
 - and still a 'Decoded copy HDR?' (unclear message!) "HDR metadata unverified", maybe because some cache needs to be cleaned ? see screenshot.
+
+---
+start from README.md and artifacts/IMPLEM-DROP3-HDR.md 
+in the comparison view, bottom metadata, HDR section:
+- in the popup display the rough number of HDR stops in the image if able to compute it
+- in the popup display 'GM' if a gain map was detected
+- Check why 'HDR metadata unverified' is still displayed for both heic and jpg.
+
+
+---
+start from README, and @PLAN-DROP3-HDR.md 
+"""
+- Tauri HEIC display uses heif-oxide, resolves up to two distinct uncached photos
+  concurrently, and writes digest-keyed SDR PNGs only to application cache storage. PNG
+  encoding is lossless, but HDR HEIF output is not preserved. Files whose .heic suffix
+  contains JPEG data display directly by detected content. Duplicate requests share the
+  same cache result; the source folder is never modified.
+"""
+
+I want HDR support in tauri + google-chrome as well, eg with using not png but jpeg hdr as intermediate format. search for a better solution ; append to @PLAN-DROP3-HDR.md your plan, then implement.
+
+---
+start from README. in tauri app, once I have opened a folder, there is no way to refresh / open another folder. can you add an Menu > Open ? and a refresh on F5 ?
+
+
+---
+in the comparison view in the bottom metadata panel I  do not see the Oppo mode (master mode etc) 

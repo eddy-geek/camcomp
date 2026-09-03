@@ -183,11 +183,11 @@ the native development profile left the pure-Rust pixel and compression loops at
 A standalone harness timed the exact decode-to-cache stages for the 8192×6144,
 14 MiB `tstgrp1/g1-IMG20260822113555.heic` on an Apple M4 Pro:
 
-| build profile | read | `heif-oxide` decode | lossless PNG | total |
-|---|---:|---:|---:|---:|
-| unoptimized development | 3.8 ms | 3.40 s | 16.00 s | 19.40 s |
-| release | 3.7 ms | 289 ms | 264 ms | 557 ms |
-| development, `opt-level=2` | 3.7 ms | 346 ms | 550 ms | 900 ms |
+| build profile              |   read | `heif-oxide` decode | lossless PNG |   total |
+| -------------------------- | -----: | ------------------: | -----------: | ------: |
+| unoptimized development    | 3.8 ms |              3.40 s |      16.00 s | 19.40 s |
+| release                    | 3.7 ms |              289 ms |       264 ms |  557 ms |
+| development, `opt-level=2` | 3.7 ms |              346 ms |       550 ms |  900 ms |
 
 The generated PNG was 85 MiB and the measured peak process working set was about
 690 MiB for one 50 MP conversion. This makes unconstrained group-wide parallelism unsafe.
@@ -245,11 +245,11 @@ explicit per-photo confirmation; Tauri remains available as the lower-risk fallb
 
 The browser-libheif stream was revisited with current packages:
 
-| Candidate | Current package | Finding |
-|---|---:|---|
-| `heic2any` | 0.0.4, MIT, 2.7 MB unpacked | last published March 2023; JPEG/PNG/GIF conversion API and stale browser-support claims; not selected |
-| `libheif-js` | 1.19.8, LGPL-3.0, 6.4 MB unpacked | lower-level libheif build; last published June 2025; no advantage over the maintained wrapper for this spike |
-| `heic-to` | 1.5.2, LGPL-3.0, 24.4 MB unpacked | maintained wrapper over libheif 1.22.2 with CSP and bitmap paths; selected behind explicit high-memory confirmation |
+| Candidate    |                   Current package | Finding                                                                                                             |
+| ------------ | --------------------------------: | ------------------------------------------------------------------------------------------------------------------- |
+| `heic2any`   |       0.0.4, MIT, 2.7 MB unpacked | last published March 2023; JPEG/PNG/GIF conversion API and stale browser-support claims; not selected               |
+| `libheif-js` | 1.19.8, LGPL-3.0, 6.4 MB unpacked | lower-level libheif build; last published June 2025; no advantage over the maintained wrapper for this spike        |
+| `heic-to`    | 1.5.2, LGPL-3.0, 24.4 MB unpacked | maintained wrapper over libheif 1.22.2 with CSP and bitmap paths; selected behind explicit high-memory confirmation |
 
 The `heic-to/csp` spike used a disposable outer worker around its decoder worker,
 `ImageBitmap`, lossless `OffscreenCanvas` PNG output, a 256 MiB compressed-input guard,
@@ -304,15 +304,15 @@ mounting, keyboard movement, grid/slider round trips, and aligned-mode fallback.
 
 Pinned direct frontend runtime licences:
 
-| Dependency | Version | Licence |
-|---|---:|---|
-| Svelte | 5.56.8 | MIT |
-| OpenSeadragon | 6.1.0 | BSD-3-Clause |
-| AJV | 8.20.0 | MIT; build-time validator generation only |
-| Tauri JavaScript API | 2.11.1 | Apache-2.0 OR MIT |
-| Tauri dialog plugin | 2.7.2 | MIT OR Apache-2.0 |
-| Vite PWA plugin | 1.3.0 | MIT |
-| heic-to | 1.5.2 | LGPL-3.0; separate user-confirmed browser worker |
+| Dependency           | Version | Licence                                          |
+| -------------------- | ------: | ------------------------------------------------ |
+| Svelte               |  5.56.8 | MIT                                              |
+| OpenSeadragon        |   6.1.0 | BSD-3-Clause                                     |
+| AJV                  |  8.20.0 | MIT; build-time validator generation only        |
+| Tauri JavaScript API |  2.11.1 | Apache-2.0 OR MIT                                |
+| Tauri dialog plugin  |   2.7.2 | MIT OR Apache-2.0                                |
+| Vite PWA plugin      |   1.3.0 | MIT                                              |
+| heic-to              |   1.5.2 | LGPL-3.0; separate user-confirmed browser worker |
 
 `npm audit --audit-level=high` currently reports zero vulnerabilities. No remote viewer
 or decoder script is loaded; the pinned worker is built and served locally.

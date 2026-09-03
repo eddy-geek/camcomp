@@ -283,7 +283,6 @@ test("two-photo groups preserve controls and expose an accessible comparison sli
   await expect(page.getByRole("button", { name: "Comparison slider" })).toBeVisible();
 
   await page.getByLabel("Navigation").selectOption("aligned");
-  await expect(page.locator(".mode-note")).toContainText("no local correspondence refinement");
   await expect(page.getByText(/normalized fallback/i)).toBeVisible();
 });
 

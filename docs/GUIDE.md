@@ -58,22 +58,22 @@ no transform for it. See §5.
 Every photo you gave camcomp appears somewhere. If it is not in a group, it is
 listed as ungrouped with a reason:
 
-| reason | what happened | what to do |
-|---|---|---|
-| `no-session-peer` | nothing else was taken within 60 seconds of it | raise `--session-gap`, or group it by hand |
-| `no-focal-compatible-peer` | peers exist but their field of view is too different | raise `--fov-tolerance` (or `--fov-tolerance-native-lens`), or group it by hand |
-| `no-distinct-configuration-peer` | its match is from the same camera *and* mode | pass `--allow-duplicate-config` |
-| `all-pairs-incompatible` | camcomp looked and concluded these are different scenes | group it by hand if you disagree |
-| `all-pairs-uncertain` | camcomp looked and could not tell | usually a low-texture or heavily changed scene |
-| `inconsistent-with-group-members` | it matched one photo but contradicted another already in the group | look at the group; something is off |
-| `unusable-timestamp` | no capture time in the file | group it by hand |
-| `unreadable-file` | the file could not be decoded | check the file |
+| reason                            | what happened                                                      | what to do                                                                      |
+| --------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| `no-session-peer`                 | nothing else was taken within 60 seconds of it                     | raise `--session-gap`, or group it by hand                                      |
+| `no-focal-compatible-peer`        | peers exist but their field of view is too different               | raise `--fov-tolerance` (or `--fov-tolerance-native-lens`), or group it by hand |
+| `no-distinct-configuration-peer`  | its match is from the same camera _and_ mode                       | pass `--allow-duplicate-config`                                                 |
+| `all-pairs-incompatible`          | camcomp looked and concluded these are different scenes            | group it by hand if you disagree                                                |
+| `all-pairs-uncertain`             | camcomp looked and could not tell                                  | usually a low-texture or heavily changed scene                                  |
+| `inconsistent-with-group-members` | it matched one photo but contradicted another already in the group | look at the group; something is off                                             |
+| `unusable-timestamp`              | no capture time in the file                                        | group it by hand                                                                |
+| `unreadable-file`                 | the file could not be decoded                                      | check the file                                                                  |
 
 `no-session-peer` and `no-focal-compatible-peer` are the two you will actually see.
 
 ### Configurations
 
-A *configuration* is a camera plus a shooting mode — that is the thing you are
+A _configuration_ is a camera plus a shooting mode — that is the thing you are
 comparing. camcomp detects them for you:
 
 ```sh
@@ -102,7 +102,7 @@ It will be sometimes. Two knobs cover almost every case.
 
 ### Photos taken slightly too far apart
 
-camcomp starts a new *session* whenever more than 60 seconds pass between shots —
+camcomp starts a new _session_ whenever more than 60 seconds pass between shots —
 long enough to absorb two device clocks disagreeing by a few seconds, short
 enough to keep the pairing work bounded. If you were slower than that, matching
 photos land in different sessions and are never compared.
@@ -122,7 +122,7 @@ value is seconds to add.
 
 ### Photos at different zoom levels
 
-camcomp compares *angle of view*, not focal length directly — a fixed focal
+camcomp compares _angle of view_, not focal length directly — a fixed focal
 ratio is a small difference at the wide end and a huge one at the long end, so a
 single ratio cannot separate "same lens, different phone" from "a real zoom
 step" (`artifacts/IMPLEM-DROP1.md` §6.11). Two phones' ultrawide cameras get a
@@ -274,7 +274,7 @@ On the eight labelled reference sets in `test/`, at default settings:
 - **every pair it examined, it judged correctly**
 - it reproduced 12 of 13 expected groups automatically
 
-The 1 it missed was blocked *before* looking at any pixels, by the
+The 1 it missed was blocked _before_ looking at any pixels, by the
 one-photo-per-configuration rule (two shots from the same phone and mode). It is
 one command or one override away.
 
@@ -412,8 +412,7 @@ Each photo displays:
 Use the mouse, trackpad, or the **Zoom in**, **Zoom out**, and **Fit all** controls. In
 **Normalized** mode, every viewer shares the same normalized center and visible span. In
 **Experimental global aligned** mode, centers map from the active photo to the group
-anchor and then through each target's persisted inverse homography. It remains marked
-experimental until the predefined real-landmark gate is recorded. A member with missing, invalid, or
+anchor and then through each target's persisted inverse homography. A member with missing, invalid, or
 out-of-bounds global mapping falls back visibly to normalized coordinates. This mode does
 not perform local correspondence interpolation or per-pixel warping.
 

@@ -182,14 +182,6 @@
     </div>
   </header>
 
-  {#if mode === "aligned"}
-    <p class="mode-note viewer-note">
-      Experimental until the real-landmark gate is recorded. Global homographies map centers through
-      the anchor. Unsupported members fall back to normalized coordinates; no local correspondence
-      refinement is applied.
-    </p>
-  {/if}
-
   <div
     class="viewer-container"
     bind:this={container}
@@ -274,10 +266,6 @@
     white-space: nowrap;
   }
   h2 span,
-  .mode-note {
-    color: var(--muted);
-    font-weight: 400;
-  }
   .controls {
     display: flex;
     flex-wrap: wrap;
@@ -310,24 +298,6 @@
     min-height: 1.8rem;
     padding: 0.25rem 0.55rem;
   }
-  .mode-note {
-    position: absolute;
-    z-index: 24;
-    right: 0.6rem;
-    bottom: 0.6rem;
-    left: 0.6rem;
-    margin: 0;
-    padding: 0.5rem 0.7rem;
-    border-radius: 0.45rem;
-    background: color-mix(in srgb, var(--surface) 92%, transparent);
-    font-size: 0.78rem;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 160ms ease;
-  }
-  :global(.chrome-visible) .mode-note {
-    opacity: 1;
-  }
   .viewer-container,
   .photo-grid {
     width: 100%;
@@ -357,12 +327,6 @@
       top: 3.8rem;
       align-items: stretch;
       flex-direction: column;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .toolbar,
-    .mode-note {
-      transition: none;
     }
   }
 </style>
