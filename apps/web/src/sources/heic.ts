@@ -1,7 +1,8 @@
 import type { DeepReadonly, Photo } from "../contracts";
+import type { DisplayDynamicRange } from "./jpeg-hdr";
 import type { ResolvedPhotoSource } from "../platform/types";
 import { normalizeRelativePath, replaceRelativePathExtension } from "./paths";
-import { MEASURED_HEIC_DELTA_MIB, MEASURED_HEIC_PEAK_MIB } from "./worker-heic";
+import { MEASURED_HEIC_DELTA_MIB, MEASURED_HEIC_PEAK_MIB, probeHeifCicp } from "./worker-heic";
 
 const HEIF_BRANDS = new Set(["heic", "heix", "hevc", "hevx", "heim", "heis", "mif1", "msf1"]);
 
@@ -75,13 +76,28 @@ export async function resolveHeicPhotoSource(
   options.signal?.throwIfAborted();
   if (!hasHeicSignature) throw new UnsupportedHeicError(originalPath);
 
+  // Probe CICP colour parameters from the container before display resolution
+  // so the result carries an accurate dynamic-range classification.
+  const cicp = await probeHeifCicp(options.exactFile);
+  options.signal?.throwIfAborted();
+  const dynamicRange = cicpToDisplayDynamicRange(cicp);
+
   const exactUrl = options.createObjectUrl(options.exactFile);
   const decodeProbe = options.decodeProbe ?? probeBrowserImageDimensions;
   try {
     const dimensions = await decodeProbe(options.exactFile, exactUrl);
     options.signal?.throwIfAborted();
     if (dimensions) {
-      return resolvedSource(options, "exact", exactUrl, originalPath, originalPath, dimensions, []);
+      return resolvedSource(
+        options,
+        "exact",
+        exactUrl,
+        originalPath,
+        originalPath,
+        dimensions,
+        [],
+        dynamicRange,
+      );
     }
   } catch (error) {
     if (isAbortError(error)) {
@@ -182,24 +198,30 @@ function resolvedSource(
   displayPath: string,
   dimensions: ImageDimensions,
   warnings: readonly string[],
+  dynamicRange?: DisplayDynamicRange,
 ): ResolvedPhotoSource {
   let released = false;
+  const displayFormat =
+    sourceKind === "exact"
+      ? "heic"
+      : sourceKind === "decoded" || /\.png$/iu.test(displayPath)
+        ? "png"
+        : "jpeg";
   return Object.freeze({
     photoId: options.photo.id,
     sourceKind,
-    displayFormat:
-      sourceKind === "exact"
-        ? "heic"
-        : sourceKind === "decoded" || /\.png$/iu.test(displayPath)
-          ? "png"
-          : "jpeg",
+    displayFormat,
     displayUrl,
     originalPath,
     displayPath,
     width: dimensions.width,
     height: dimensions.height,
     warnings: Object.freeze([...warnings]),
-    displayDynamicRange: { kind: "unverified", reason: "not-jpeg" } as const,
+    displayDynamicRange:
+      dynamicRange ??
+      (displayFormat === "heic"
+        ? ({ kind: "unverified", reason: "not-jpeg" } as const)
+        : ({ kind: "sdr" } as const)),
     jpegGainMapRuntimeCapability: "unverified",
     release: () => {
       if (released) return;
@@ -225,4 +247,22 @@ function ascii(bytes: Uint8Array, start: number, end: number): string {
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
+}
+
+/**
+ * Map CICP colour parameters to a {@link DisplayDynamicRange}.
+ *
+ * PQ (transfer 16, SMPTE ST 2084) and HLG (transfer 18, ARIB STD-B67) are
+ * the two standardized HDR transfer functions. Everything else — including
+ * Display P3 with sRGB or BT.709 transfer — is classified as SDR.
+ */
+function cicpToDisplayDynamicRange(
+  cicp: Awaited<ReturnType<typeof probeHeifCicp>>,
+): DisplayDynamicRange {
+  if (!cicp) return { kind: "sdr" };
+  if (cicp.transfer === 16)
+    return { kind: "heic-pq", transfer: cicp.transfer, primaries: cicp.primaries };
+  if (cicp.transfer === 18)
+    return { kind: "heic-hlg", transfer: cicp.transfer, primaries: cicp.primaries };
+  return { kind: "sdr" };
 }

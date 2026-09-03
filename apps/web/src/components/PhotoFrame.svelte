@@ -71,7 +71,11 @@
             ? undefined
             : `≈${formatNumber(source.displayDynamicRange.hdrStops)} HDR stops`,
         ]
-      : [];
+      : source?.displayDynamicRange.kind === "heic-pq"
+        ? ["PQ"]
+        : source?.displayDynamicRange.kind === "heic-hlg"
+          ? ["HLG"]
+          : [];
   $: statusMessages = [
     presentationStatus
       ? presentationStatusText(presentationStatus, source?.jpegGainMapRuntimeCapability)

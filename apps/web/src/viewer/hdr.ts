@@ -12,6 +12,7 @@ export type HdrPresentationStatus =
   | "sdr-forced"
   | "sdr-display"
   | "sdr-codec"
+  | "heic-hdr-source"
   | "unverified-runtime"
   | "unverified-source";
 
@@ -42,6 +43,9 @@ export function evaluateHdrPresentationStatus(
   forcedSdrSupported = true,
 ): HdrPresentationStatus {
   if (displayDynamicRange.kind === "sdr") return "sdr-source";
+  if (displayDynamicRange.kind === "heic-pq" || displayDynamicRange.kind === "heic-hlg") {
+    return "heic-hdr-source";
+  }
   if (displayDynamicRange.kind === "unverified") {
     return displayDynamicRange.reason === "not-jpeg" ? "sdr-source" : "unverified-source";
   }
@@ -66,6 +70,8 @@ export function presentationStatusText(
         : "SDR fallback · this runtime does not apply this JPEG gain map";
     case "sdr-forced":
       return "HDR source · comparing in SDR";
+    case "heic-hdr-source":
+      return "HEIC HDR source · display not tone-mapped";
     case "unverified-runtime":
       return "HDR output unverified in this desktop runtime";
     case "unverified-source":

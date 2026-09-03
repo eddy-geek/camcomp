@@ -207,7 +207,10 @@ export class TauriPlatformAdapter implements PlatformAdapter {
       originalPath: resolved.originalPath,
       displayPath: resolved.displayPath,
       warnings: Object.freeze([...resolved.warnings]),
-      displayDynamicRange: { kind: "unverified", reason: "range-unsupported" } as const,
+      displayDynamicRange:
+        resolved.displayFormat === "heic"
+          ? ({ kind: "unverified", reason: "not-jpeg" } as const)
+          : ({ kind: "unverified", reason: "range-unsupported" } as const),
       jpegGainMapRuntimeCapability: "unverified" as const,
       release: () => undefined,
     });

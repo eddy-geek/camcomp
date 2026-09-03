@@ -124,6 +124,48 @@ MPF with trailing padding after it. That is a separate container-parser
 limitation; it must not be converted into a Rust mode decision or treated as
 proof that the source lacks Pro XDR.
 
+## HDR format across all OPPO data
+
+### Format rule
+
+OPPO embeds HDR exclusively in JPEG format as Ultra HDR v1 gain maps
+(XMP/GContainer + MPF + trailing gain-map JPEG). True HEIC output from the OPPO
+Find X9 Pro never carries gain-map metadata. No OPPO HEIC file in any corpus
+directory contains a `colr`/`nclx` box either — they use ICC `prof` colour
+profiles (Display P3) instead.
+
+This means OPPO HEIC is wide-gamut SDR, not HDR. The frontend HEIC CICP probe
+(`probeHeifCicp`) correctly returns `undefined` for all OPPO HEICs, and
+`cicpToDisplayDynamicRange` classifies them as `{ kind: "sdr" }`.
+
+### Corpus inventory
+
+| directory | OPPO JPEGs | gain-map HDR | OPPO HEICs | JPEG-in-.heic | notes |
+| --- | --- | --- | --- | --- | --- |
+| `data/metadata-calibration/` | 14 | all 14 | 10 true HEIC | 8 (7 with GM) | `Mode_Text.heic` is JPEG without GM |
+| `data/cmp-garage-hdr/` | 11 (`IMG*`) | all 11 | — | — | |
+| `data/jpg-uhdr-night/` | 3 (`IMG*`) | all 3 | — | — | |
+| `data/juan/` | — | — | ~50 true HEIC | 10 (all with GM) | pairs in the same burst |
+| `data/ferr-oppo/` | — | — | ~170 true HEIC | 0 | all true HEIC, no HDR |
+| `data/sept2/` | — | — | ~20 true HEIC | 0 | burst and single frames |
+| `data/peakfinder/` | 25 | 0 (all SDR) | — | — | Peakfinder app screenshots |
+| `test/tstgrp2/` | 2 (`g3-*`) | 0 (SDR) | 1 (`g2-oppo-*`) | 0 | OPPO JPEGs are Peakfinder |
+| `test/tstgrp9/` | 3 (`IMG*`) | all 3 | — | — | night-mode comparison |
+
+### JPEG-in-.heic detail
+
+Several OPPO `.heic` files are physically JPEGs (magic bytes `FFD8FF`). These
+arise from specific capture modes (Flash Auto/Always, Master, some Auto) where
+the camera writes JPEG content under a `.heic` extension. In the calibration
+set, 8 of 18 `.heic` files are actually JPEGs; 7 of those 8 carry gain-map
+metadata. The exception is `1x 23mm Mode_Text.heic`, which is JPEG but has no
+gain-map XMP.
+
+In Tauri, magic-byte detection classifies these correctly as
+`displayFormat: "jpeg"`, so the gain-map inspection runs. In the browser, the
+HEIC resolver throws `UnsupportedHeicError` for non-HEIC-magic files; display
+requires a JPEG sidecar or worker decode is not attempted.
+
 ## Limitations and confirmed inconsistencies
 
 - **Underwater is not encoded distinctly in this corpus.**
@@ -143,6 +185,10 @@ proof that the source lacks Pro XDR.
 - **Filename and extension are not authoritative.** The calibration set includes
   JPEG bytes with `.heic` names; magic bytes, dimensions, EXIF, and XMP/MPF must
   be considered independently.
+- **True OPPO HEIC is wide-gamut SDR, not HDR.** All true HEIC files use ICC
+  `prof` (Display P3), not CICP `nclx`. The HEIC CICP probe returns `undefined`
+  and the frontend classifies them as SDR. No PQ or HLG transfer function has
+  been observed in any OPPO HEIC sample.
 
 ## Implementation references
 
@@ -150,4 +196,7 @@ proof that the source lacks Pro XDR.
 - Dimension fallback and normalized metadata: `crates/camcomp-core/src/pipeline.rs`
 - Calibration regression test: `crates/camcomp-core/tests/reference_sets.rs`
 - JPEG gain-map inspection: `apps/web/src/sources/jpeg-hdr.ts`
+- HEIC CICP colour probing: `apps/web/src/sources/worker-heic.ts` (`probeHeifCicp`)
+- HEIC source resolution and HDR classification: `apps/web/src/sources/heic.ts`
+- HDR presentation policy: `apps/web/src/viewer/hdr.ts`
 - Real-file HDR regression coverage: `apps/web/tests/hdr.test.ts`

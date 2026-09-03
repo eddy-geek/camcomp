@@ -32,6 +32,16 @@ export type DisplayDynamicRange =
       readonly validation: GainMapValidation;
       readonly hdrStops?: number;
     }
+  | {
+      readonly kind: "heic-pq";
+      readonly transfer: number;
+      readonly primaries: number;
+    }
+  | {
+      readonly kind: "heic-hlg";
+      readonly transfer: number;
+      readonly primaries: number;
+    }
   | { readonly kind: "unverified"; readonly reason: JpegHdrInspectionReason };
 
 export interface JpegHdrInspectionOptions {
@@ -131,7 +141,11 @@ export async function annotateResolvedPhotoSource(
   if (source.displayFormat === "png") {
     displayDynamicRange = { kind: "sdr" };
   } else if (source.displayFormat === "heic") {
-    displayDynamicRange = unverified("not-jpeg");
+    // The HEIC source resolver already probed CICP colour parameters from the
+    // container and classified the dynamic range. Preserve its result instead
+    // of overwriting with a generic "not-jpeg" unverified state.
+    displayDynamicRange =
+      (source as Partial<ResolvedPhotoSource>).displayDynamicRange ?? unverified("not-jpeg");
   } else {
     try {
       displayDynamicRange = await inspectJpegGainMapUrl(source.displayUrl, options);
