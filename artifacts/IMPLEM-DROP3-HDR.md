@@ -71,7 +71,8 @@ Runtime recognition is isolated in `viewer/hdr.ts`:
 
 - Firefox/Gecko is an explicit SDR-only fallback;
 - current Chromium-family and standalone Safari user agents follow the accepted native-capable policy snapshot;
-- Tauri, unknown, empty, and unrecognized user agents remain unverified;
+- Tauri webviews are classified by their user agent, matching the underlying engine (WKWebView on macOS matches Safari, webview2 on Windows matches Chrome);
+- unknown, empty, and unrecognized user agents remain unverified;
 - `(dynamic-range: high)` is considered only after source and runtime checks.
 
 ### 1.5 Viewer and UI
@@ -113,11 +114,21 @@ Unknown mode bits remain visible in the classification and metadata note, while
 analysis and grouping continue; the Rust calibration invariant checks that
 behavior.
 
-## 3. Manual gates still open
+## 3. Manual gates
+
+### Closed
+
+- **M3** packaged Tauri host/range/MIME/output verification — verified on
+  macOS 2026-09-04. The Tauri asset protocol serves JPEG gain-map files with
+  working Range responses. WKWebView applies the gain map through its native
+  WebKit renderer, so the runtime detection now uses the webview user agent
+  instead of a blanket `"unverified"` override. Tauri on macOS with a
+  Safari/WebKit UA is classified `"native-supported"`.
+
+### Still open
 
 - M1 Chrome/Edge/Safari direct-image parity on a named HDR display;
 - M2 Firefox SDR-base fallback on a named desktop release;
-- M3 packaged Tauri host/range/MIME/output verification;
 - M4 two-to-four-photo memory, interaction, and cleanup measurements;
 - M5 HEIC PQ/HLG display: verify that a real PQ or HLG HEIF renders
   meaningfully in Safari, Chrome, and the Tauri macOS native path, and that
@@ -125,4 +136,8 @@ behavior.
 - a real externally generated dual Ultra HDR v1 plus ISO 21496-1 fixture;
 - a real PQ or HLG HEIF fixture to exercise the CICP detection path.
 
-Until those gates are recorded, the application must use `HDR output unverified in this desktop runtime` where the runtime policy cannot establish native output, and documentation must not claim physical HDR luminance or packaged Tauri HDR support. On macOS Tauri, the original HEIC now reaches WKWebView's HTML image path without an SDR cache conversion; this is a preservation path, not yet verified HDR output. Non-macOS Tauri fallback remains current wide-gamut SDR display support, not an HDR implementation.
+Until those gates are recorded, documentation must not claim physical HDR
+luminance. On macOS Tauri, the original HEIC now reaches WKWebView's HTML image
+path without an SDR cache conversion; this is a preservation path, not yet
+verified HDR output. Non-macOS Tauri fallback remains current wide-gamut SDR
+display support, not an HDR implementation.

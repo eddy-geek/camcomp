@@ -24,7 +24,6 @@ export interface RuntimeEvidence {
 export function detectJpegGainMapRuntimeCapability(
   evidence: RuntimeEvidence = defaultRuntimeEvidence(),
 ): JpegGainMapRuntimeCapability {
-  if (evidence.runtime === "tauri") return "unverified";
   const userAgent = evidence.userAgent ?? "";
   if (!userAgent) return "unverified";
   if (/Firefox\//.test(userAgent)) return "sdr-only";

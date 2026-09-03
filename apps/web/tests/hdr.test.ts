@@ -223,7 +223,7 @@ describe("Tauri JPEG gain-map transport", () => {
 });
 
 describe("JPEG gain-map runtime and presentation policy", () => {
-  it("centralizes browser-family policy and keeps unknown/Tauri unverified", () => {
+  it("centralizes browser-family policy and uses user-agent detection in all runtimes", () => {
     expect(
       detectJpegGainMapRuntimeCapability({
         runtime: "browser",
@@ -240,6 +240,13 @@ describe("JPEG gain-map runtime and presentation policy", () => {
       detectJpegGainMapRuntimeCapability({ runtime: "browser", userAgent: "WebKit-like bot" }),
     ).toBe("unverified");
     expect(detectJpegGainMapRuntimeCapability({ runtime: "tauri" })).toBe("unverified");
+    expect(
+      detectJpegGainMapRuntimeCapability({
+        runtime: "tauri",
+        userAgent:
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.5 Safari/605.1.15",
+      }),
+    ).toBe("native-supported");
   });
 
   it("does not infer HDR from the display media query alone", () => {
