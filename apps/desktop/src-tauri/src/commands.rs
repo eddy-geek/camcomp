@@ -4,19 +4,30 @@
 //! expands to a `#[macro_export]`ed helper macro plus a `pub use` of it, and at
 //! the crate root those two collide.
 
+#[cfg(not(target_os = "macos"))]
 use std::collections::HashSet;
 use std::fs::File;
-use std::io::{BufWriter, Read, Write};
+#[cfg(not(target_os = "macos"))]
+use std::io::BufWriter;
+use std::io::Read;
+#[cfg(not(target_os = "macos"))]
+use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Condvar, Mutex};
+#[cfg(not(target_os = "macos"))]
+use std::sync::Condvar;
+use std::sync::Mutex;
 
 use camcomp_core::cache;
 use camcomp_core::imageio::SourceFormat;
 use camcomp_core::pipeline::{self, AnalysisOptions, Discovery};
 use camcomp_core::progress::{CancelToken, ProgressEvent, ProgressSink};
 use camcomp_core::schema::{AnalysisDocument, ManualOverride, Photo};
-use image::{ExtendedColorType, ImageDecoder, ImageEncoder, ImageReader};
+#[cfg(not(target_os = "macos"))]
+use image::ExtendedColorType;
+#[cfg(not(target_os = "macos"))]
+use image::ImageEncoder;
+use image::{ImageDecoder, ImageReader};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -24,11 +35,15 @@ use tauri::{AppHandle, Emitter, Manager, State};
 pub const PROGRESS_EVENT: &str = "camcomp://progress";
 
 /// Largest compressed HEIC accepted by the display decoder.
+#[cfg(not(target_os = "macos"))]
 const MAX_HEIC_COMPRESSED_BYTES: u64 = 256 * 1024 * 1024;
 /// Largest oriented HEIC accepted by the display decoder.
+#[cfg(not(target_os = "macos"))]
 const MAX_HEIC_PIXELS: u64 = 120_000_000;
+#[cfg(not(target_os = "macos"))]
 const MAX_PARALLEL_HEIC_DECODES: usize = 2;
 /// Versioned suffix so changing display-decoder behavior invalidates old files.
+#[cfg(not(target_os = "macos"))]
 const HEIC_CACHE_SUFFIX: &str = "heif-oxide-v1.png";
 
 /// A structured error the frontend can branch on.
@@ -221,15 +236,18 @@ impl RunState {
     }
 }
 
+#[cfg(not(target_os = "macos"))]
 struct DecodeGateState {
     active: HashSet<String>,
 }
 
+#[cfg(not(target_os = "macos"))]
 struct DecodeGate {
     state: Mutex<DecodeGateState>,
     ready: Condvar,
 }
 
+#[cfg(not(target_os = "macos"))]
 impl Default for DecodeGate {
     fn default() -> Self {
         Self {
@@ -241,6 +259,7 @@ impl Default for DecodeGate {
     }
 }
 
+#[cfg(not(target_os = "macos"))]
 impl DecodeGate {
     fn enter<'a>(&'a self, key: &str) -> Result<DecodePermit<'a>, CommandError> {
         let mut state = self
@@ -261,11 +280,13 @@ impl DecodeGate {
     }
 }
 
+#[cfg(not(target_os = "macos"))]
 struct DecodePermit<'a> {
     gate: &'a DecodeGate,
     key: String,
 }
 
+#[cfg(not(target_os = "macos"))]
 impl Drop for DecodePermit<'_> {
     fn drop(&mut self) {
         let mut state = self
@@ -282,6 +303,7 @@ impl Drop for DecodePermit<'_> {
 #[derive(Default)]
 pub struct SourceScope {
     root: Mutex<Option<PathBuf>>,
+    #[cfg(not(target_os = "macos"))]
     decoder: DecodeGate,
 }
 
@@ -715,6 +737,7 @@ fn dimension_mismatch(expected: [u32; 2]) -> CommandError {
     )
 }
 
+#[cfg(not(target_os = "macos"))]
 fn find_sidecar(
     root: &Path,
     original: &Path,
@@ -757,6 +780,7 @@ fn find_sidecar(
     (None, warnings)
 }
 
+#[cfg(not(target_os = "macos"))]
 fn checked_expected_pixels(photo: &Photo) -> Result<u64, CommandError> {
     let [width, height] = photo.dimensions.oriented;
     let pixels = u64::from(width)
@@ -773,6 +797,7 @@ fn checked_expected_pixels(photo: &Photo) -> Result<u64, CommandError> {
     Ok(pixels)
 }
 
+#[cfg(not(target_os = "macos"))]
 fn u16_samples_to_bytes(samples: &[u16]) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(samples.len() * 2);
     for sample in samples {
@@ -781,6 +806,7 @@ fn u16_samples_to_bytes(samples: &[u16]) -> Vec<u8> {
     bytes
 }
 
+#[cfg(not(target_os = "macos"))]
 fn write_decoded_png(path: &Path, decoded: heif_oxide::DecodedImage) -> Result<(), CommandError> {
     let temporary = path.with_extension("png.tmp");
     let result = (|| {
@@ -820,6 +846,7 @@ fn write_decoded_png(path: &Path, decoded: heif_oxide::DecodedImage) -> Result<(
     result
 }
 
+#[cfg(not(target_os = "macos"))]
 fn decode_heic_to_cache(
     app: &AppHandle,
     original: &Path,
