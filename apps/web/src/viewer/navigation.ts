@@ -113,7 +113,7 @@ export class NavigationController {
   readonly #alignedMapper: PointMapper;
   readonly #fallbacks = new Map<string, string>();
   #state: NavigationState = {
-    mode: "normalized",
+    mode: "aligned",
     leaderPhotoId: null,
     center: [0.5, 0.5],
     scale: { kind: "normalized", span: [1, 1] },

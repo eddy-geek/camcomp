@@ -32,7 +32,7 @@
   let width = 1200;
   let height = 700;
   let resizeObserver: ResizeObserver | undefined;
-  let mode: NavigationMode = "normalized";
+  let mode: NavigationMode = "aligned";
   let presentation: "grid" | "slider" = "grid";
   let forcedSdrSupported = supportsDynamicRangeLimit();
   let controller = new NavigationController(group);
