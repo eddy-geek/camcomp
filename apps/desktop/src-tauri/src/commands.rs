@@ -133,6 +133,18 @@ pub enum PhotoSourceKind {
     Decoded,
 }
 
+/// Container format of the display source selected by magic bytes.
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum PhotoDisplayFormat {
+    /// JPEG, including JPEG data stored under another extension.
+    Jpeg,
+    /// PNG source or decoded derivative.
+    Png,
+    /// Native HEIC/HEIF source.
+    Heic,
+}
+
 /// A local photo source consumed only by the Tauri adapter.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -141,6 +153,8 @@ pub struct ResolvePhotoSourceResponse {
     pub photo_id: String,
     /// How the display source was obtained.
     pub source_kind: PhotoSourceKind,
+    /// Container format selected from the display source's magic bytes.
+    pub display_format: PhotoDisplayFormat,
     /// Absolute local display path; the adapter converts this to an asset URL.
     pub display_path: PathBuf,
     /// Absolute path of the immutable acquired source photo.
@@ -910,6 +924,11 @@ fn resolve_photo_source_sync(
             }
         }
     };
+    let display_format = match display_source_format(&display_path)? {
+        SourceFormat::Jpeg => PhotoDisplayFormat::Jpeg,
+        SourceFormat::Png => PhotoDisplayFormat::Png,
+        SourceFormat::Heif => PhotoDisplayFormat::Heic,
+    };
     app.asset_protocol_scope()
         .allow_file(&display_path)
         .map_err(|_| {
@@ -921,6 +940,7 @@ fn resolve_photo_source_sync(
     Ok(ResolvePhotoSourceResponse {
         photo_id: photo.id.clone(),
         source_kind,
+        display_format,
         display_path,
         original_path: original,
         warnings,
@@ -1206,6 +1226,7 @@ mod tests {
         let response = ResolvePhotoSourceResponse {
             photo_id: "photo-1".into(),
             source_kind: PhotoSourceKind::Sidecar,
+            display_format: PhotoDisplayFormat::Jpeg,
             display_path: PathBuf::from("/source/photo.jpg"),
             original_path: PathBuf::from("/source/photo.heic"),
             warnings: vec!["sidecar selected".into()],
@@ -1213,6 +1234,7 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains(r#""photoId":"photo-1""#), "{json}");
         assert!(json.contains(r#""sourceKind":"sidecar""#), "{json}");
+        assert!(json.contains(r#""displayFormat":"jpeg""#), "{json}");
         assert!(
             json.contains(r#""displayPath":"/source/photo.jpg""#),
             "{json}"

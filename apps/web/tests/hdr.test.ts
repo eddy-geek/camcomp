@@ -37,8 +37,21 @@ function xmp(length: number): Uint8Array {
   return new TextEncoder().encode(xml);
 }
 
-function syntheticGainMap(iso = false): Uint8Array {
-  const gainMap = new Uint8Array([0xff, 0xd8, 0xff, 0x00, 0x00, 0xff, 0xd9]);
+function syntheticGainMap(iso = false, hdrStops?: number, padding = 0): Uint8Array {
+  const gainMapXmp =
+    hdrStops === undefined
+      ? new Uint8Array()
+      : jpegSegment(
+          0xe1,
+          new TextEncoder().encode(
+            `${XMP_PACKET_SIGNATURE}<x:xmpmeta xmlns:x="adobe:ns:meta/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:hdrgm="${HDR_GAIN_MAP_NAMESPACE}"><rdf:RDF><rdf:Description hdrgm:Version="1.0" hdrgm:GainMapMax="${hdrStops}" hdrgm:HDRCapacityMax="${hdrStops}"/></rdf:RDF></x:xmpmeta>`,
+          ),
+        );
+  const gainMap = concat(
+    new Uint8Array([0xff, 0xd8]),
+    gainMapXmp,
+    new Uint8Array([0xff, 0xda, 0x00, 0xff, 0xd9]),
+  );
   const app2 = new TextEncoder().encode(iso ? `${ISO_21496_NAMESPACE}\0` : "MPF\0");
   const base = concat(
     new Uint8Array([0xff, 0xd8]),
@@ -47,7 +60,7 @@ function syntheticGainMap(iso = false): Uint8Array {
     iso ? jpegSegment(0xe2, app2) : new Uint8Array(),
     new Uint8Array([0xff, 0xda, 0x00, 0xff, 0xd9]),
   );
-  return concat(base, gainMap);
+  return concat(base, gainMap, new Uint8Array(padding));
 }
 
 function syntheticPlainJpeg(): Uint8Array {
@@ -88,6 +101,18 @@ describe("JPEG gain-map inspection", () => {
     );
   });
 
+  it("reads a rough stop count from a padded gain-map JPEG", async () => {
+    const padded = syntheticGainMap(false, 2.30045, 4_727);
+    await expect(
+      inspectJpegGainMapUrl("blob:padded", { fetch: rangedFetch(padded) }),
+    ).resolves.toEqual({
+      kind: "jpeg-gain-map",
+      encoding: "ultra-hdr-v1",
+      validation: "trailing-jpeg-validated",
+      hdrStops: 2.30045,
+    });
+  });
+
   it("returns SDR for a structurally valid JPEG without gain-map metadata", async () => {
     await expect(
       inspectJpegGainMapUrl("blob:sdr", { fetch: rangedFetch(syntheticPlainJpeg()) }),
@@ -116,7 +141,7 @@ describe("JPEG gain-map inspection", () => {
     expect(fetch).toHaveBeenCalledOnce();
   });
 
-  it("classifies the committed JPEG corpus as validated, SDR, and unverified sources", async () => {
+  it("classifies the committed JPEG corpus as validated gain maps and SDR controls", async () => {
     const paths = [
       "test/tstgrp2/g2-PXL_20260822_095305153.jpg",
       "test/tstgrp2/g3-20260822_115745_45.20000_7.20000.jpg",
@@ -143,40 +168,44 @@ describe("JPEG gain-map inspection", () => {
         return inspectJpegGainMapUrl(`file:${path}`, { fetch: rangedFetch(bytes) });
       }),
     );
-    expect(results.filter((result) => result.kind === "jpeg-gain-map")).toHaveLength(13);
+    const gainMaps = results.filter((result) => result.kind === "jpeg-gain-map");
+    expect(gainMaps).toHaveLength(16);
+    expect(gainMaps.every((result) => result.hdrStops !== undefined)).toBe(true);
     expect(results.filter((result) => result.kind === "sdr")).toHaveLength(2);
-    expect(results.filter((result) => result.kind === "unverified")).toHaveLength(3);
-    expect(
-      results.filter(
-        (result) => result.kind === "unverified" && result.reason === "invalid-trailing-jpeg",
-      ),
-    ).toHaveLength(3);
+    expect(results.filter((result) => result.kind === "unverified")).toHaveLength(0);
   });
 });
 
-describe("known SDR derivatives", () => {
-  it("classifies decoded PNG copies without attempting HDR metadata transport", async () => {
-    const fetch = vi.fn(async () => {
-      throw new Error("asset transport unavailable");
-    });
-    const source = {
-      photoId: "photo-a",
-      sourceKind: "decoded" as const,
-      displayUrl: "asset://localhost/cache/photo.png",
-      originalPath: "photo.heic",
-      displayPath: "cache/photo.png",
-      warnings: ["Decoded the HEIC source to an SDR PNG in application cache storage."],
-      release: vi.fn(),
-    };
+describe("known non-JPEG sources", () => {
+  it.each([
+    ["png", "decoded", { kind: "sdr" }],
+    ["heic", "exact", { kind: "unverified", reason: "not-jpeg" }],
+  ] as const)(
+    "classifies %s without attempting JPEG metadata transport",
+    async (displayFormat, sourceKind, expected) => {
+      const fetch = vi.fn(async () => {
+        throw new Error("asset transport unavailable");
+      });
+      const source = {
+        photoId: "photo-a",
+        sourceKind,
+        displayFormat,
+        displayUrl: `asset://localhost/photo.${displayFormat}`,
+        originalPath: "photo.heic",
+        displayPath: `photo.${displayFormat}`,
+        warnings: [],
+        release: vi.fn(),
+      };
 
-    await expect(
-      annotateResolvedPhotoSource(source, "unverified", { fetch }),
-    ).resolves.toMatchObject({
-      displayDynamicRange: { kind: "sdr" },
-      jpegGainMapRuntimeCapability: "unverified",
-    });
-    expect(fetch).not.toHaveBeenCalled();
-  });
+      await expect(
+        annotateResolvedPhotoSource(source, "unverified", { fetch }),
+      ).resolves.toMatchObject({
+        displayDynamicRange: expected,
+        jpegGainMapRuntimeCapability: "unverified",
+      });
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("Tauri JPEG gain-map transport", () => {

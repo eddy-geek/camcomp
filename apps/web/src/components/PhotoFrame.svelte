@@ -63,10 +63,20 @@
       )
     : undefined;
   $: if (presentationStatus) notifyStatusChange(presentationStatus);
+  $: hdrMetadataMessages =
+    source?.displayDynamicRange.kind === "jpeg-gain-map"
+      ? [
+          "GM",
+          source.displayDynamicRange.hdrStops === undefined
+            ? undefined
+            : `≈${formatNumber(source.displayDynamicRange.hdrStops)} HDR stops`,
+        ]
+      : [];
   $: statusMessages = [
     presentationStatus
       ? presentationStatusText(presentationStatus, source?.jpegGainMapRuntimeCapability)
       : undefined,
+    ...hdrMetadataMessages,
     ...(source?.warnings ?? []),
   ].filter((message): message is string => Boolean(message));
 

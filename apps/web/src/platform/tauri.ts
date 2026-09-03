@@ -40,6 +40,7 @@ interface NativeAnalyzeResponse {
 interface NativeResolvedPhoto {
   readonly photoId: string;
   readonly sourceKind: "native" | "sidecar" | "decoded";
+  readonly displayFormat: "jpeg" | "png" | "heic";
   readonly displayPath: string;
   readonly originalPath: string;
   readonly warnings: readonly string[];
@@ -201,6 +202,7 @@ export class TauriPlatformAdapter implements PlatformAdapter {
     const source = Object.freeze({
       photoId: resolved.photoId,
       sourceKind: resolved.sourceKind,
+      displayFormat: resolved.displayFormat,
       displayUrl: convertFileSrc(resolved.displayPath),
       originalPath: resolved.originalPath,
       displayPath: resolved.displayPath,

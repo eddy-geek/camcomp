@@ -134,6 +134,7 @@ export class BrowserSourceResolver {
     return Object.freeze({
       photoId: photo.id,
       sourceKind: "exact" as const,
+      displayFormat: file.type === "image/png" || /\.png$/iu.test(file.name) ? "png" : "jpeg",
       displayUrl,
       originalPath: normalizeRelativePath(photo.path),
       displayPath: normalizeRelativePath(photo.path),

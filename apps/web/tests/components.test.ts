@@ -87,6 +87,7 @@ describe("high-memory HEIC confirmation", () => {
     const resolved: ResolvedPhotoSource = {
       photoId: "photo-a",
       sourceKind: "decoded",
+      displayFormat: "png",
       displayUrl: "blob:decoded",
       originalPath: "a.heic",
       displayPath: "a.heic (lossless worker decode)",
@@ -148,6 +149,7 @@ describe("photo details", () => {
     const resolved: ResolvedPhotoSource = {
       photoId: photo.id,
       sourceKind: "exact",
+      displayFormat: "jpeg",
       displayUrl: "blob:photo",
       originalPath: photo.path,
       displayPath: photo.path,
@@ -191,14 +193,16 @@ describe("HDR presentation", () => {
     const resolved: ResolvedPhotoSource = {
       photoId: "photo-a",
       sourceKind: "exact",
+      displayFormat: "jpeg",
       displayUrl: "blob:hdr",
       originalPath: "a.jpg",
       displayPath: "a.jpg",
-      warnings: ["HDR metadata unverified"],
+      warnings: [],
       displayDynamicRange: {
         kind: "jpeg-gain-map",
         encoding: "ultra-hdr-v1",
         validation: "trailing-jpeg-validated",
+        hdrStops: 2.30045,
       },
       jpegGainMapRuntimeCapability: "native-supported",
       release: vi.fn(),
@@ -214,9 +218,11 @@ describe("HDR presentation", () => {
     const statusPopover = statusMessage.closest(".status-popover");
     expect(statusPopover).not.toBeNull();
     expect(statusPopover).toHaveStyle({ position: "fixed" });
+    expect(statusPopover).toHaveTextContent("GM");
+    expect(statusPopover).toHaveTextContent("≈2.3 HDR stops");
     expect(
       rendered.getByRole("button", {
-        name: /photo status: hdr path active hdr metadata unverified/i,
+        name: /photo status: hdr path active gm ≈2.3 hdr stops/i,
       }),
     ).toBeVisible();
     const details = rendered.getByRole("heading", { name: "a.jpg" }).closest(".photo-details");

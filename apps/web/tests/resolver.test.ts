@@ -69,6 +69,7 @@ describe("browser source resolution", () => {
       revokeObjectUrl: (url) => revoked.push(url),
     });
     const source = await resolver.resolvePhoto(validPhoto());
+    expect(source.displayFormat).toBe("jpeg");
     source.release();
     source.release();
     resolver.release();
@@ -88,7 +89,7 @@ describe("browser source resolution", () => {
       decodeProbe: async () => undefined,
       dimensionProbe: async () => ({ width: 4, height: 3 }),
     });
-    expect(resolved.sourceKind).toBe("sidecar");
+    expect(resolved).toMatchObject({ sourceKind: "sidecar", displayFormat: "jpeg" });
     expect(revoked).toEqual(["blob:heic"]);
     resolved.release();
     expect(revoked).toEqual(["blob:heic", "blob:sidecar"]);
@@ -126,6 +127,10 @@ describe("browser source resolution", () => {
 
     const resolved = await resolveHeicPhotoSource({ ...options, allowHighMemoryWorker: true });
     expect(worker).toHaveBeenCalledOnce();
-    expect(resolved).toMatchObject({ sourceKind: "decoded", displayUrl: "blob:decoded" });
+    expect(resolved).toMatchObject({
+      sourceKind: "decoded",
+      displayFormat: "png",
+      displayUrl: "blob:decoded",
+    });
   });
 });

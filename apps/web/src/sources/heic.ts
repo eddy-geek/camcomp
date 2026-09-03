@@ -187,6 +187,12 @@ function resolvedSource(
   return Object.freeze({
     photoId: options.photo.id,
     sourceKind,
+    displayFormat:
+      sourceKind === "exact"
+        ? "heic"
+        : sourceKind === "decoded" || /\.png$/iu.test(displayPath)
+          ? "png"
+          : "jpeg",
     displayUrl,
     originalPath,
     displayPath,

@@ -409,6 +409,12 @@ Each photo displays:
 - detected shooting mode, including OPPO modes such as `master` and `hi-res`;
 - source substitution and alignment status.
 
+For a validated JPEG gain map, the HDR status popup shows `GM` and a rough HDR stop count when
+`HDRCapacityMax` or `GainMapMax` is available in the embedded gain-map XMP. This is encoded
+headroom rounded to one decimal place, not a measurement of the current pixels or display.
+Genuine HEIC sources bypass this JPEG-only check; packaged native HEIC HDR output remains
+separately unverified as described below.
+
 Use the mouse, trackpad, or the **Zoom in**, **Zoom out**, and **Fit all** controls. In
 **Normalized** mode, every viewer shares the same normalized center and visible span. In
 **Experimental global aligned** mode, centers map from the active photo to the group

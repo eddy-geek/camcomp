@@ -97,8 +97,9 @@ camera model, and detected shooting mode, and synchronizes OpenSeadragon pan/zoo
 always available; experimental aligned navigation maps through Drop 1's global
 homographies and shows deterministic per-photo fallback. Arrow keys pan, `+`/`-` zoom,
 Page Up/Page Down select adjacent groups, and Space advances to the next group. In the desktop
-app, **File → Open…** selects another folder and F5 refreshes the current analysis. Two-photo
-groups can use a keyboard-accessible comparison slider.
+app, **File → Open…** selects another folder and F5 refreshes the current analysis. Validated
+JPEG gain maps are marked `GM`; their status popup includes a rough metadata-derived HDR stop
+count when available. Two-photo groups can use a keyboard-accessible comparison slider.
 
 ## Repository layout
 

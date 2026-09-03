@@ -34,6 +34,7 @@ export interface SourceSelection {
 }
 
 export type ResolvedPhotoSourceKind = "exact" | "sidecar" | "decoded" | "native";
+export type ResolvedPhotoDisplayFormat = "jpeg" | "png" | "heic";
 
 export interface PhotoResolutionOptions {
   readonly allowHighMemoryHeic?: boolean;
@@ -42,6 +43,7 @@ export interface PhotoResolutionOptions {
 export interface ResolvedPhotoSource {
   readonly photoId: string;
   readonly sourceKind: ResolvedPhotoSourceKind;
+  readonly displayFormat: ResolvedPhotoDisplayFormat;
   readonly displayUrl: string;
   readonly originalPath: string;
   readonly displayPath: string;

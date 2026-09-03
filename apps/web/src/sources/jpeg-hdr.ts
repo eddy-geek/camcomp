@@ -30,6 +30,7 @@ export type DisplayDynamicRange =
       readonly kind: "jpeg-gain-map";
       readonly encoding: JpegGainMapEncoding;
       readonly validation: GainMapValidation;
+      readonly hdrStops?: number;
     }
   | { readonly kind: "unverified"; readonly reason: JpegHdrInspectionReason };
 
@@ -98,14 +99,26 @@ export async function inspectJpegGainMapUrl(
     url,
     head,
     declaration.gainMapLength,
+    metadataLimit,
     fetchImpl,
     options.signal,
   );
-  if (validation !== true) return unverified(validation);
+  if (typeof validation === "string") return unverified(validation);
+  const hdrStops = await readGainMapHdrStops(
+    url,
+    head,
+    validation.start,
+    declaration.gainMapLength,
+    metadataLimit,
+    fetchImpl,
+    domParserFactory,
+    options.signal,
+  );
   return {
     kind: "jpeg-gain-map",
     encoding: parsed.isoFound ? "dual" : "ultra-hdr-v1",
     validation: "trailing-jpeg-validated",
+    ...(hdrStops === undefined ? {} : { hdrStops }),
   };
 }
 
@@ -115,8 +128,10 @@ export async function annotateResolvedPhotoSource(
   options: JpegHdrInspectionOptions = {},
 ): Promise<ResolvedPhotoSource> {
   let displayDynamicRange: DisplayDynamicRange;
-  if (knownSdrDisplaySource(source)) {
+  if (source.displayFormat === "png") {
     displayDynamicRange = { kind: "sdr" };
+  } else if (source.displayFormat === "heic") {
+    displayDynamicRange = unverified("not-jpeg");
   } else {
     try {
       displayDynamicRange = await inspectJpegGainMapUrl(source.displayUrl, options);
@@ -146,6 +161,7 @@ interface ParsedJpegMetadata {
   readonly xmpDeclarations: readonly XmpDeclaration[];
   readonly mpfFound: boolean;
   readonly isoFound: boolean;
+  readonly hdrStops?: number;
 }
 
 interface XmpDeclaration {
@@ -229,28 +245,65 @@ async function validateTrailingJpeg(
   url: string,
   head: HeadRead,
   gainMapLength: number,
+  metadataLimit: number,
+  fetchImpl: typeof globalThis.fetch,
+  signal?: AbortSignal,
+): Promise<{ readonly start: number } | JpegHdrInspectionReason> {
+  const expectedStart = head.totalSize - gainMapLength;
+  const exact = await validateJpegAt(url, head, expectedStart, gainMapLength, fetchImpl, signal);
+  if (exact === true) return { start: expectedStart };
+  if (exact !== "invalid-trailing-jpeg") return exact;
+
+  const searchStart = Math.max(0, expectedStart - metadataLimit);
+  const searchEnd = Math.min(head.totalSize - 1, expectedStart + 2);
+  const search = await readSmallRange(url, head, searchStart, searchEnd, fetchImpl, signal);
+  if (typeof search === "string") return search;
+  for (let offset = search.length - 3; offset >= 0; offset -= 1) {
+    if (search[offset] !== 0xff || search[offset + 1] !== 0xd8 || search[offset + 2] !== 0xff) {
+      continue;
+    }
+    const start = searchStart + offset;
+    const candidate = await validateJpegAt(url, head, start, gainMapLength, fetchImpl, signal);
+    if (candidate === true) return { start };
+    if (candidate !== "invalid-trailing-jpeg") return candidate;
+  }
+  return "invalid-trailing-jpeg";
+}
+
+async function validateJpegAt(
+  url: string,
+  head: HeadRead,
+  start: number,
+  length: number,
   fetchImpl: typeof globalThis.fetch,
   signal?: AbortSignal,
 ): Promise<true | JpegHdrInspectionReason> {
-  const gainMapStart = head.totalSize - gainMapLength;
-  const first = await readSmallRange(url, head, gainMapStart, gainMapStart + 2, fetchImpl, signal);
+  const end = start + length - 1;
+  const first = await readSmallRange(url, head, start, start + 2, fetchImpl, signal);
   if (typeof first === "string") return first;
   if (first[0] !== 0xff || first[1] !== 0xd8 || first[2] !== 0xff) {
     return "invalid-trailing-jpeg";
   }
-  const last = await readSmallRange(
-    url,
-    head,
-    head.totalSize - 2,
-    head.totalSize - 1,
-    fetchImpl,
-    signal,
-  );
+  const last = await readSmallRange(url, head, end - 1, end, fetchImpl, signal);
   if (typeof last === "string") return last;
-  if (last[0] !== 0xff || last[1] !== 0xd9) {
-    return "invalid-trailing-jpeg";
-  }
-  return true;
+  return last[0] === 0xff && last[1] === 0xd9 ? true : "invalid-trailing-jpeg";
+}
+
+async function readGainMapHdrStops(
+  url: string,
+  head: HeadRead,
+  start: number,
+  length: number,
+  metadataLimit: number,
+  fetchImpl: typeof globalThis.fetch,
+  domParserFactory: () => DOMParser | undefined,
+  signal?: AbortSignal,
+): Promise<number | undefined> {
+  const end = start + Math.min(length, metadataLimit) - 1;
+  const bytes = await readSmallRange(url, head, start, end, fetchImpl, signal);
+  if (typeof bytes === "string") return undefined;
+  const parsed = parseJpegMetadata(bytes, length, bytes.length === length, domParserFactory);
+  return parsed.kind === "metadata" ? parsed.hdrStops : undefined;
 }
 
 async function readSmallRange(
@@ -331,6 +384,10 @@ function collectMetadata(
     xmpDeclarations,
     mpfFound: app2.some((payload) => startsWithAscii(payload, "MPF\0")),
     isoFound: app2.some((payload) => containsNulTerminatedAscii(payload, ISO_21496_NAMESPACE)),
+    hdrStops: app1.reduce<number | undefined>(
+      (stops, payload) => stops ?? parseHdrStops(payload, domParserFactory),
+      undefined,
+    ),
   };
 }
 
@@ -374,6 +431,37 @@ function parseXmp(
     return { kind: "error", reason: "invalid-gain-map-length" };
   }
   return { gainMapLength };
+}
+
+function parseHdrStops(
+  payload: Uint8Array,
+  domParserFactory: () => DOMParser | undefined,
+): number | undefined {
+  const text = decodeUtf8(payload);
+  if (
+    text === undefined ||
+    !text.includes(HDR_GAIN_MAP_NAMESPACE) ||
+    /<!DOCTYPE|<!ENTITY/i.test(text)
+  ) {
+    return undefined;
+  }
+  const xml = text.startsWith(XMP_PACKET_SIGNATURE)
+    ? text.slice(XMP_PACKET_SIGNATURE.length)
+    : text;
+  const parser = domParserFactory();
+  if (!parser) return undefined;
+  const document = parser.parseFromString(xml.replace(/\0+$/u, "").trim(), "application/xml");
+  if (document.getElementsByTagName("parsererror").length > 0) return undefined;
+  const elements = [...document.getElementsByTagName("*")];
+  for (const attribute of ["HDRCapacityMax", "GainMapMax"]) {
+    const value = elements
+      .map((element) => element.getAttributeNS(HDR_GAIN_MAP_NAMESPACE, attribute))
+      .find((candidate) => candidate !== null);
+    if (value === undefined) continue;
+    const stops = Number(value);
+    if (Number.isFinite(stops) && stops >= 0 && stops <= 32) return stops;
+  }
+  return undefined;
 }
 
 function boundaryError(
@@ -485,10 +573,6 @@ function matchesAsciiAt(bytes: Uint8Array, start: number, value: string): boolea
 
 function unverified(reason: JpegHdrInspectionReason): DisplayDynamicRange {
   return { kind: "unverified", reason };
-}
-
-function knownSdrDisplaySource(source: ResolvedPhotoSourceForAnnotation): boolean {
-  return source.sourceKind === "decoded" || /\.png$/iu.test(source.displayPath);
 }
 
 class InspectionFailure extends Error {

@@ -1,7 +1,7 @@
 # Drop 3 JPEG HDR Implementation Notes
 
 - **Status:** Automated Drop 3 delivery complete. The frontend unit/component suite, three-engine E2E matrix, production build, contract check, Tauri compile-check, and Rust formatting pass. Physical HDR output, packaged Tauri output, and named hardware performance gates remain pending.
-- **Date:** 2026-08-27
+- **Date:** 2026-09-03
 - **Sources:** `PLAN-DROP3-HDR.md` and `ADR-DROP3-HDR.md`
 - **Purpose:** Record the implemented JPEG gain-map path, automated evidence, and limitations without claiming unverified display output.
 
@@ -15,16 +15,17 @@
 - validates `206` `Content-Range` responses and bounded `200` bodies;
 - parses JPEG markers only before SOS;
 - recognizes Ultra HDR v1 XMP, MPF, and ISO 21496-1 namespace signaling;
-- validates the declared trailing gain-map JPEG with two tiny range reads;
+- validates the declared gain-map JPEG with bounded range reads, including files with trailing padding;
+- reads the embedded gain-map XMP head for a rough `HDRCapacityMax`/`GainMapMax` stop count;
 - returns typed SDR, gain-map, or unverified states without decoding pixels;
 - rejects malformed XML/markers, unsafe lengths, duplicate metadata, unsupported ranges, and truncated gain maps without making the photo unavailable;
 - propagates cancellation while preserving source release behavior.
 
-The existing 12 baseline JPEG fixtures classify as 10 gain-map JPEGs and 2 SDR controls. ISO-only metadata remains explicitly unverified; synthetic dual metadata covers the parser branch, not codec interoperability.
+The current 18-file JPEG corpus classifies as 16 validated gain-map JPEGs and 2 SDR controls. Three OPPO files place bounded padding after the declared secondary JPEG and now validate from the declared length plus a bounded backward search instead of being rejected as `invalid-trailing-jpeg`. All 16 gain maps expose a rough stop count from their embedded XMP. ISO-only metadata remains explicitly unverified; synthetic dual metadata covers the parser branch, not codec interoperability.
 
 ### 1.2 Shared source and runtime contracts
 
-Resolved photo sources now carry transient `displayDynamicRange` and `jpegGainMapRuntimeCapability` fields. Browser and Tauri adapters annotate the actual display URL after source resolution. Tauri remains unverified by policy; no native parser, IPC image transfer, schema field, or dependency was added. Known PNG/decoded derivatives are classified as SDR before transport inspection, because a failed asset fetch cannot make a known PNG's range ambiguous. Direct HEIC remains outside the HDR claim. Tauri also gives source magic bytes precedence over extensions, so JPEG data stored under an OPPO `.heic` filename remains an original JPEG and can retain and expose any gain map it contains.
+Resolved photo sources now carry transient `displayFormat`, `displayDynamicRange`, and `jpegGainMapRuntimeCapability` fields. Browser and Tauri adapters annotate only magic-byte-classified JPEG display sources. Tauri remains unverified by policy; no native HDR parser, IPC image transfer, schema field, or dependency was added. Known PNG/decoded derivatives are classified as SDR before transport inspection, and genuine HEIC bypasses the JPEG inspector instead of replacing its definitive format classification with a transport error. Direct HEIC remains outside the HDR claim. Tauri also gives source magic bytes precedence over extensions, so JPEG data stored under an OPPO `.heic` filename remains an original JPEG and can retain and expose any gain map it contains.
 
 Runtime recognition is isolated in `viewer/hdr.ts`:
 
@@ -35,7 +36,7 @@ Runtime recognition is isolated in `viewer/hdr.ts`:
 
 ### 1.3 Viewer and UI
 
-OpenSeadragon is explicitly configured with the HTML drawer and retains the original image URL. The group toolbar owns an album-lifetime `Automatic / HDR when available` versus `Compare in SDR` mode and applies the inherited `dynamic-range-limit` policy. Each gain-map photo exposes a text status for active HDR path, SDR display, Firefox fallback, forced SDR, unverified runtime, or unverified metadata. Media-query listeners are scoped to each photo frame and removed during teardown.
+OpenSeadragon is explicitly configured with the HTML drawer and retains the original image URL. The group toolbar owns an album-lifetime `Automatic / HDR when available` versus `Compare in SDR` mode and applies the inherited `dynamic-range-limit` policy. Each gain-map photo exposes a text status for active HDR path, SDR display, Firefox fallback, forced SDR, unverified runtime, or unverified metadata. Its bottom-metadata popup also shows `GM` and, when embedded metadata supplies it, a one-decimal approximate HDR stop count. The number is metadata-derived headroom, not a pixel measurement or physical-display claim. Media-query listeners are scoped to each photo frame and removed during teardown.
 
 Slider mode forwards both photo statuses into a visible, filename-keyed summary outside the `aria-hidden` trailing layer. Ordinary source-kind badges and current HEIC resolution behavior remain intact.
 
