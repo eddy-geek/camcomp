@@ -129,6 +129,17 @@ mise run calibrate        # per-pair metric distribution against the labels
 belong together, and `gx-` marks one deliberately left undecided. The fixture
 runner compares the analysis against those labels.
 
+The GPS position in these photos is synthetic. `scripts/anonymize-fixtures.py`
+replaced it with one made-up coordinate per set (`tstgrpN` → 45.N, 7.N, 1000 m),
+and where the coordinates also appeared in a filename, the filename was changed
+to match. Everything else in the metadata is original, because camera, lens,
+exposure, timestamps and HDR gain maps are what the fixtures actually test.
+
+The substitution is a byte-length-preserving in-place patch of the GPS rationals,
+so the absolute offsets that JPEG MPF gain maps and OPPO HEIF trailers record
+stay valid. A metadata rewriter that repacks the container does not: exiftool
+costs 13 of the 16 gain-map detections.
+
 ## Known limitations
 
 Read `artifacts/IMPLEM-DROP1.md` before trusting a threshold. The short version:
