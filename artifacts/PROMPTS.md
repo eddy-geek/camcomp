@@ -265,14 +265,6 @@ most issues are visible in attached screenshot of group 132
 - and still a 'Decoded copy HDR?' (unclear message!) "HDR metadata unverified", maybe because some cache needs to be cleaned ? see screenshot.
 
 ---
-start from README.md and artifacts/IMPLEM-DROP3-HDR.md 
-in the comparison view, bottom metadata, HDR section:
-- in the popup display the rough number of HDR stops in the image if able to compute it
-- in the popup display 'GM' if a gain map was detected
-- Check why 'HDR metadata unverified' is still displayed for both heic and jpg.
-
-
----
 start from README, and @PLAN-DROP3-HDR.md 
 """
 - Tauri HEIC display uses heif-oxide, resolves up to two distinct uncached photos
@@ -283,6 +275,26 @@ start from README, and @PLAN-DROP3-HDR.md
 """
 
 I want HDR support in tauri + google-chrome as well, eg with using not png but jpeg hdr as intermediate format. search for a better solution ; append to @PLAN-DROP3-HDR.md your plan, then implement.
+
+---
+start from README.md and artifacts/IMPLEM-DROP3-HDR.md 
+in the comparison view, bottom metadata, HDR section:
+- in the popup display the rough number of HDR stops in the image if able to compute it
+- in the popup display 'GM' if a gain map was detected
+- Check why 'HDR metadata unverified' is still displayed for both heic and jpg.
+
+---
+start from README.md ; artifacts/IMPLEM-DROP3-HDR.md ; and last commit desc
+
+in the comparison view, bottom metadata, HDR section, Check why 'HDR metadata unverified' is still displayed for jpg ; and tell what to expect in terms of the current heic pictures. can you find any pictures from oppo in the calibration or in .data/ with HDR content ? in which format, gainmap or else ? (I know the pixel files named PXL_* have it)
+
+at the end fix all the 'unused' rust build warnings.
+
+---
+start from README.md ; artifacts/IMPLEM-DROP3-HDR.md ; and last commit desc in the comparison view, bottom metadata, HDR section, Check why 'HDR metadata unverified' is still displayed for jpg ; and tell what to expect in terms of the current heic pictures. can you find any pictures from oppo in the calibration or in .data/ with HDR content ? in which format, gainmap or else ? (I know the pixel files named PXL_* have it) at the end fix all the 'unused' rust build warnings.
+
+---
+- add the relevant information to the corresponding files eg IMPLEM-DROP3-HDR.md, SPEC-OPPO.md. - "camcomp's current HDR inspector only handles JPEG Ultra HDR gain maps. True HEIC/HEVC containers may carry HDR via different mechanisms , but none of those are inspected yet." --> fix that. commit
 
 ---
 start from README. in tauri app, once I have opened a folder, there is no way to refresh / open another folder. can you add an Menu > Open ? and a refresh on F5 ?
